@@ -2138,16 +2138,20 @@ public static class CelestialLightingFeatures
     // 0.00% of pixels changed, the same as its same-build control, and vector_light_suite reads
     // 0.00% on all 56 captures.
     //
-    // OFF ON MEASUREMENT, NOT CAUTION. On the 500-lamp, 50-pawn colony plate, four off/on pairs in one
-    // boot (overlay draw, ms per frame, median of four; worst frame in brackets):
-    //   paused:        off 0.21 (0.64)   on 0.11 (0.32)
-    //   pawns walking: off 0.28 (9.0)    on 0.71 (16.5)
-    // Batching halves the still frame and costs 2.5x on a moving one, with a worst frame nearly twice
-    // as long. Walking pawns and swinging doors move some member of nearly every batch each frame,
-    // and one moved member rebuilds the whole combined mesh: 760-1,567 combined-mesh builds per
-    // 1,200-frame window, against no per-emitter cost that a still frame could repay. A colony is
-    // rarely still, so the flag stays off until a rebuild touches only the members that moved.
-    public static bool VectorLightDrawBatch = false;
+    // ON, BECAUSE OF THE ROSTER. The first batched draw rebuilt a batch's combined mesh whenever any
+    // member moved, and on the 500-lamp, 50-pawn colony plate that made a frame with pawns walking
+    // cost 2.5x the per-emitter draw (0.71 ms against 0.28; worst frame 16.5 ms against 9.0), because
+    // a living colony moves some member of nearly every batch every frame. It shipped off on that
+    // measurement. Batches now keep a roster instead (VectorLightDrawBatch's header,
+    // VectorLightBatchRosterMath): a moved emitter's slot is zeroed and it draws itself, and settled
+    // emitters are readmitted at most once per rejoin window. Same plate, four off/on pairs in one
+    // boot, overlay draw per frame, median of four (worst frame in brackets):
+    //   paused:        off 0.21 (0.61)   on 0.12 (0.30)
+    //   pawns walking: off 0.35 (8.6)    on 0.35 (9.4)
+    // Combined-mesh rebuilds per 1,200-frame walking window fell from 760-1,567 to 8-25. The frame
+    // is unchanged: vector_light_draw_batch_ab reads 0.00% of pixels changed, as does its
+    // same-build control.
+    public static bool VectorLightDrawBatch = true;
 
     // Feature key for VectorLightSilhouetteCache.
     public const string VectorLightSilhouetteCacheKey = "vector_light_silhouette_cache";

@@ -36,11 +36,15 @@ namespace CelestialLighting;
 //   - anything past VectorLightShader.BatchCapacity in one key, because a uniform array is a fixed
 //     allocation and writing past it is a silently truncated batch, not a bigger one.
 //
-// THE COST SIDE IS REAL AND IS MEASURED. A combined mesh must be rebuilt whenever its membership or
-// any member's geometry moves, and that is more vertex writing than rebuilding one emitter's fan.
-// This is a steady-frame win paid for on the frames that move, which is why
-// VectorLightField.BatchMeshBuilds sits in the same counter bank as the draw-call saving rather than
-// somewhere it could be read without it.
+// THE COST SIDE IS REAL AND IS MEASURED, AND IT IS WHY BATCHES KEEP A ROSTER. The first version
+// rebuilt a combined mesh whenever its membership or any member's geometry moved, and on the
+// 500-lamp, 50-pawn colony plate that made a frame with pawns walking cost 2.5x the per-emitter draw:
+// a living colony moves some member of nearly every batch every frame. So each batch now keeps a
+// fixed roster. An emitter whose geometry moved leaves it by having its slot's strength zeroed — no
+// rebuild — and draws itself the shipped way; once it has held still for a while it is offered back,
+// and the batch rebuilds to readmit joiners at most once per rejoin window. The timing rules are
+// VectorLightBatchRosterMath. VectorLightField.BatchMeshBuilds sits in the same counter bank as the
+// draw-call saving so the saving cannot be quoted without what it costs.
 //
 // ALL OF IT IS MAIN-THREAD, like everything else that hands Unity an object. The static scratch
 // below follows the repo's rule for static scratch: it belongs to the calling thread, and the
@@ -54,14 +58,27 @@ internal static class VectorLightDrawBatch
         public VectorLightOverlay.Composition Composition;
         public int Diameter;
 
-        // This frame's members, refilled from empty by Begin. Parallel to the two uniform arrays
-        // below by index — a member's position in this list IS its slot, which is what the mesh
-        // writes into UV1.z and what indexes the texture array.
-        public readonly List<Member> Members = new List<Member>();
+        // Which roster slots drew in the batch this frame, and how many. A slot that did not — its
+        // emitter moved, was culled, or is gone — has its strength zeroed at Flush, so its stale
+        // geometry still rasterises and adds nothing. That zero is what lets an emitter leave a batch
+        // without a rebuild. Sized with the roster; cleared at the end of every Flush.
+        public bool[] Present = new bool[0];
+        public int PresentCount;
 
-        // What the combined mesh below was last built from. Compared against Members to decide
-        // whether this frame may reuse it; see SameMembership for what "the same" means and why it
-        // is more than the count.
+        // Emitters offered this frame that are not in the roster but have settled, so the next
+        // rebuild may take them. They drew on their own this frame.
+        public readonly List<VectorLightField.LightEntry> Joinable =
+            new List<VectorLightField.LightEntry>();
+
+        // When the oldest current joiner started waiting (VectorLightBatchRosterMath.PendingSince),
+        // and the frame this batch was last put on Live, so Enqueue adds it once per frame.
+        public int PendingSince = VectorLightBatchRosterMath.NotPending;
+        public int LiveFrame = -1;
+
+        // THE ROSTER: what the combined mesh below was built from, slot by slot. A member's index
+        // here IS its slot — what the mesh writes into UV1.z, what indexes the two uniform arrays and
+        // which slice of the texture array it samples. RosterSlot compares an emitter against its
+        // entry to decide whether it may draw in the batch this frame.
         public Member[] Built = new Member[0];
         public int BuiltCount;
         public float BuiltAltitude = float.NaN;
@@ -121,6 +138,10 @@ internal static class VectorLightDrawBatch
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
     private static readonly List<int> Tris = new List<int>();
 
+    // The roster a rebuild is assembling, before RecordRoster commits it.
+    private static readonly List<VectorLightField.LightEntry> Roster =
+        new List<VectorLightField.LightEntry>();
+
     // Read once per frame in Begin rather than per emitter. Every clause behind BatchActive is a
     // cached verdict or a static bool, so this is a cheap read either way — but asking it once means
     // a frame cannot change its mind halfway through and submit half its emitters one way.
@@ -132,14 +153,18 @@ internal static class VectorLightDrawBatch
     // mesh bakes the altitude into every vertex's y.
     private static float frameAltitude;
 
+    // Our own frame counter, the clock the roster's settle and rejoin waits run on. Counted in Begin
+    // rather than read off Time.frameCount so it advances once per overlay draw, which is the only
+    // thing the waits are about.
+    private static int frameIndex;
+
     public static void Begin(float altitude)
     {
         active = VectorLightShader.BatchActive;
         frameAltitude = altitude;
+        frameIndex++;
 
-        for (int i = 0; i < Live.Count; i++)
-            Live[i].Members.Clear();
-
+        // Each batch's per-frame state was cleared by the Flush that drew it, so only the list goes.
         Live.Clear();
     }
 
@@ -154,22 +179,33 @@ internal static class VectorLightDrawBatch
 
         Batch batch = BatchFor(entry, composition);
 
-        // FULL IS A REFUSAL, NOT AN OVERFLOW. See this file's header: the uniform array is a fixed
-        // allocation, so the sixty-fifth emitter cannot go in it. It draws itself instead, which
-        // costs one call — the same call it would have cost with the feature off.
-        if (batch.Members.Count >= VectorLightShader.BatchCapacity)
-            return false;
-
-        int slot = batch.Members.Count;
-
-        batch.Members.Add(new Member
+        if (batch.LiveFrame != frameIndex)
         {
-            Entry = entry,
-            MeshVersion = entry.MeshVersion,
-            StartX = entry.FieldStartX,
-            StartZ = entry.FieldStartZ,
-            Diameter = entry.FieldDiameter,
-        });
+            batch.LiveFrame = frameIndex;
+            Live.Add(batch);
+        }
+
+        NoteGeometry(entry);
+
+        int slot = RosterSlot(batch, entry);
+
+        // NOT IN THE ROSTER, OR IN IT WITH STALE GEOMETRY: it draws itself this frame, the same call it
+        // would cost with the feature off, and its slot (if any) is zeroed at Flush. It is offered to
+        // the next rebuild only once it has held still — a lamp beside a busy door never is, and so
+        // never costs a rebuild.
+        if (slot < 0)
+        {
+            if (VectorLightBatchRosterMath.Settled(
+                    frameIndex, entry.BatchSettledSince, VectorLightBatchRosterMath.SettleFrames))
+            {
+                batch.Joinable.Add(entry);
+            }
+
+            return false;
+        }
+
+        batch.Present[slot] = true;
+        batch.PresentCount++;
 
         // The same four numbers WriteProps would have put on this emitter's own block, in the same
         // order and with the same meanings — see VectorLightOverlay.WriteProps. Colour and strength
@@ -178,15 +214,49 @@ internal static class VectorLightDrawBatch
         batch.Colors[slot] = new Vector4(color.r, color.g, color.b, strength);
         batch.Parameters[slot] = new Vector4(vanillaWeight, skyAmbient, slot, 0f);
 
-        if (slot == 0)
+        return true;
+    }
+
+    // Restarts the emitter's settle clock whenever anything the combined mesh depends on moved.
+    private static void NoteGeometry(VectorLightField.LightEntry entry)
+    {
+        if (entry.BatchSeenMeshVersion == entry.MeshVersion
+            && entry.BatchSeenStartX == entry.FieldStartX
+            && entry.BatchSeenStartZ == entry.FieldStartZ
+            && entry.BatchSeenDiameter == entry.FieldDiameter)
         {
-            batch.Radius = entry.Radius;
-            batch.Composition = composition;
-            batch.Diameter = entry.FieldDiameter;
-            Live.Add(batch);
+            return;
         }
 
-        return true;
+        entry.BatchSeenMeshVersion = entry.MeshVersion;
+        entry.BatchSeenStartX = entry.FieldStartX;
+        entry.BatchSeenStartZ = entry.FieldStartZ;
+        entry.BatchSeenDiameter = entry.FieldDiameter;
+        entry.BatchSettledSince = frameIndex;
+    }
+
+    // The emitter's slot in this batch's roster, or -1 when it has none or the mesh holds it with
+    // geometry, a square or an altitude it no longer has. The Entry check is what makes a stale
+    // BatchSlot harmless: a rebuild that dropped this emitter may have given its slot to another.
+    private static int RosterSlot(Batch batch, VectorLightField.LightEntry entry)
+    {
+        if (entry.BatchOwner != batch || batch.BuiltAltitude != frameAltitude)
+            return -1;
+
+        int slot = entry.BatchSlot;
+
+        if (slot >= batch.BuiltCount)
+            return -1;
+
+        Member built = batch.Built[slot];
+
+        bool current = built.Entry == entry
+            && built.MeshVersion == entry.MeshVersion
+            && built.StartX == entry.FieldStartX
+            && built.StartZ == entry.FieldStartZ
+            && built.Diameter == entry.FieldDiameter;
+
+        return current ? slot : -1;
     }
 
     public static void Flush()
@@ -265,7 +335,13 @@ internal static class VectorLightDrawBatch
 
         if (!Batches.TryGetValue(key, out Batch batch))
         {
-            batch = new Batch();
+            // Radius, composition and diameter are the key, so they are fixed for the batch's life.
+            batch = new Batch
+            {
+                Radius = entry.Radius,
+                Composition = composition,
+                Diameter = entry.FieldDiameter,
+            };
             Batches[key] = batch;
         }
 
@@ -274,15 +350,44 @@ internal static class VectorLightDrawBatch
 
     private static void Submit(Batch batch)
     {
-        int count = batch.Members.Count;
+        if (batch.PresentCount > VectorLightField.LargestDrawBatch)
+            VectorLightField.LargestDrawBatch = batch.PresentCount;
 
-        if (count > VectorLightField.LargestDrawBatch)
-            VectorLightField.LargestDrawBatch = count;
+        if (batch.PresentCount > 0 && batch.Mesh != null)
+            Draw(batch);
 
-        EnsureMesh(batch);
+        // AFTER THE DRAW, for the next frame. The joiners drew themselves this frame; rebuilding now
+        // puts them in the roster that next frame's Enqueue looks them up in.
+        batch.PendingSince = VectorLightBatchRosterMath.PendingSince(
+            batch.PendingSince, batch.Joinable.Count, frameIndex);
 
-        if (batch.Mesh == null)
-            return;
+        if (VectorLightBatchRosterMath.ShouldRebuild(batch.Mesh != null, batch.Joinable.Count,
+                batch.PendingSince, frameIndex, VectorLightBatchRosterMath.RejoinFrames))
+        {
+            Rebuild(batch);
+            batch.PendingSince = VectorLightBatchRosterMath.NotPending;
+        }
+
+        System.Array.Clear(batch.Present, 0, batch.Present.Length);
+        batch.PresentCount = 0;
+        batch.Joinable.Clear();
+    }
+
+    private static void Draw(Batch batch)
+    {
+        // THE ZERO THAT LETS AN EMITTER LEAVE WITHOUT A REBUILD. A slot whose emitter did not draw
+        // here this frame still has its old fan in the mesh; zero strength makes that fan contribute
+        // exactly nothing under either blend — One One adds 0, DstColor One gives dst * (1 + 0) —
+        // and a zero sky ambient selects the additive branch, so nothing divides. Exactly nothing,
+        // not nearly: the batched frame has to match the per-emitter one pixel for pixel.
+        for (int slot = 0; slot < batch.BuiltCount; slot++)
+        {
+            if (!batch.Present[slot])
+            {
+                batch.Colors[slot] = Vector4.zero;
+                batch.Parameters[slot] = new Vector4(0f, 0f, slot, 0f);
+            }
+        }
 
         EnsureSlices(batch);
 
@@ -298,36 +403,42 @@ internal static class VectorLightDrawBatch
         VectorLightField.DrawCalls++;
     }
 
-    // The combined mesh, rebuilt only when it has to be.
+    // A new roster: every member that drew in the batch this frame, then the joiners, up to
+    // capacity. Members that did not draw are dropped here and nowhere else, which is why leaving
+    // is free and rejoining is what costs a rebuild.
     //
     // THE THREE CHANNELS COME FROM VectorLightOverlay'S OWN APPENDERS, not from copies of them. A
     // combined mesh that disagreed with the per-emitter mesh about a vertex, a uv or a winding would
     // draw a different frame, and the batched arm's whole claim is that it draws the same one — so
     // the loops are written once over there and called from both places.
-    private static void EnsureMesh(Batch batch)
+    private static void Rebuild(Batch batch)
     {
-        if (batch.Mesh != null && SameMembership(batch))
-            return;
+        Roster.Clear();
+
+        for (int slot = 0; slot < batch.BuiltCount; slot++)
+        {
+            if (batch.Present[slot])
+                Roster.Add(batch.Built[slot].Entry);
+        }
+
+        // FULL IS A REFUSAL, NOT AN OVERFLOW: the uniform array is a fixed allocation, so a joiner
+        // past capacity keeps drawing itself — the same call it would cost with the feature off.
+        for (int i = 0; i < batch.Joinable.Count && Roster.Count < VectorLightShader.BatchCapacity; i++)
+            Roster.Add(batch.Joinable[i]);
 
         Verts.Clear();
         Uvs.Clear();
         VanillaUvs.Clear();
         Tris.Clear();
 
-        for (int slot = 0; slot < batch.Members.Count; slot++)
+        for (int slot = 0; slot < Roster.Count; slot++)
         {
-            Member member = batch.Members[slot];
-            VectorLightMath.LightMesh built = member.Entry.Built;
+            VectorLightField.LightEntry entry = Roster[slot];
+            VectorLightMath.LightMesh built = entry.Built;
 
             VectorLightOverlay.AppendGeometry(built, frameAltitude, Verts, Uvs, Tris);
             VectorLightOverlay.AppendFieldUvs(
-                built, member.StartX, member.StartZ, member.Diameter, slot, VanillaUvs);
-        }
-
-        if (Verts.Count == 0)
-        {
-            batch.Mesh = null;
-            return;
+                built, entry.FieldStartX, entry.FieldStartZ, entry.FieldDiameter, slot, VanillaUvs);
         }
 
         if (batch.Mesh == null)
@@ -355,50 +466,42 @@ internal static class VectorLightDrawBatch
             batch.Mesh.SetTriangles(Tris, 0);
         }
 
-        RecordMembership(batch);
+        RecordRoster(batch);
         VectorLightField.BatchMeshBuilds++;
     }
 
-    // Whether this frame's members are the same emitters, in the same order, with the same geometry
-    // and the same squares as the ones the cached mesh was built from.
-    //
-    // ORDER MATTERS AND IS NOT INCIDENTAL. A member's index is its slot, and the slot is baked into
-    // the mesh's UV1 and into which slice it samples. Two frames with the same emitters in a
-    // different order are a different mesh, so this compares position by position rather than as
-    // sets — and the order is the roster's enumeration order, which is stable between frames for an
-    // unchanged roster.
-    private static bool SameMembership(Batch batch)
+    private static void RecordRoster(Batch batch)
     {
-        if (batch.BuiltCount != batch.Members.Count || batch.BuiltAltitude != frameAltitude)
-            return false;
+        int count = Roster.Count;
 
-        for (int i = 0; i < batch.BuiltCount; i++)
+        if (batch.Built.Length < count)
+            batch.Built = new Member[count];
+
+        if (batch.Present.Length < count)
+            batch.Present = new bool[count];
+
+        for (int slot = 0; slot < count; slot++)
         {
-            Member was = batch.Built[i];
-            Member now = batch.Members[i];
+            VectorLightField.LightEntry entry = Roster[slot];
 
-            if (was.Entry != now.Entry
-                || was.MeshVersion != now.MeshVersion
-                || was.StartX != now.StartX
-                || was.StartZ != now.StartZ
-                || was.Diameter != now.Diameter)
+            batch.Built[slot] = new Member
             {
-                return false;
-            }
+                Entry = entry,
+                MeshVersion = entry.MeshVersion,
+                StartX = entry.FieldStartX,
+                StartZ = entry.FieldStartZ,
+                Diameter = entry.FieldDiameter,
+            };
+
+            entry.BatchOwner = batch;
+            entry.BatchSlot = slot;
+
+            // Silent until its emitter draws here next frame and Enqueue writes it.
+            batch.Colors[slot] = Vector4.zero;
+            batch.Parameters[slot] = new Vector4(0f, 0f, slot, 0f);
         }
 
-        return true;
-    }
-
-    private static void RecordMembership(Batch batch)
-    {
-        if (batch.Built.Length < batch.Members.Count)
-            batch.Built = new Member[batch.Members.Count];
-
-        for (int i = 0; i < batch.Members.Count; i++)
-            batch.Built[i] = batch.Members[i];
-
-        batch.BuiltCount = batch.Members.Count;
+        batch.BuiltCount = count;
         batch.BuiltAltitude = frameAltitude;
     }
 
@@ -414,13 +517,17 @@ internal static class VectorLightDrawBatch
     // from it.
     private static void EnsureSlices(Batch batch)
     {
-        int count = batch.Members.Count;
+        int count = batch.BuiltCount;
 
         EnsureArray(batch, count);
 
         for (int slot = 0; slot < count; slot++)
         {
-            VectorLightField.LightEntry entry = batch.Members[slot].Entry;
+            // An absent slot draws at zero strength, so its slice is never read and is not refreshed.
+            if (!batch.Present[slot])
+                continue;
+
+            VectorLightField.LightEntry entry = batch.Built[slot].Entry;
 
             // BOTH HALVES OF THE TEST MATTER. The version catches vanilla's glow moving under a
             // stationary emitter; the source identity catches the emitter in this slot CHANGING,
