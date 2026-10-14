@@ -58,14 +58,18 @@ that documents this).
 | `Source/SectionLayer_*.cs` | Our own map draw layers (§9 desaturation, §15b eave shade) |
 | `Source/Probes/` | `IProbe` implementations for the live harness — excluded from the shipped DLL by `<Compile Remove>`, compiled instead into `TestMod/CelestialLighting.Probes.csproj` |
 | `TestMod/` | The probe-bridge mod (`joof.celestiallighting.probes`), dev-only, never published |
-| `Tests/CelestialLighting.Tests/` | NUnit + Mono.Cecil, net8.0, runs with no RimWorld present |
+| `Tests/CelestialLighting.Tests/` | NUnit + Mono.Cecil, net10.0, runs with no RimWorld present |
 | `Tests/Scenarios/*.json` | Live harness scenarios (steps + probe pins + screenshots) |
 | `Tests/Screenshots/` | Committed A/B captures referenced from PR bodies |
 | `Tools/` | Offline utilities that link the shipped pure cores: `AuroraPreview` (renders §11a's field to PNG/GIF), `AuroraBench`, `WeatherAudit` (runs §13's classifier over every installed `WeatherDef`), and `ScenarioGen` (Python generators for the long scenario JSONs) |
 | `publish.sh` | Stages a curated `dist/` tree for Steam + GitHub — never upload the repo directory itself |
 
-`./build.sh`, `./TestMod/build.sh`, `./test.sh`. The shipped DLL lands in `1.6/Assemblies/`, which is
-gitignored.
+`./build.sh`, `./TestMod/build.sh`, `./test.sh`. `main` builds **RimWorld 1.7 only** (net10.0) into
+`1.7/Assemblies/`. **RimWorld 1.6 is frozen** on the `release/1.6` branch (tag `rimworld-1.6-final`):
+`build.sh` exports that branch into `.build-1.6/` and compiles the net481 DLL into `1.6/Assemblies/`,
+so the 1.6 assembly that ships is always rebuilt from its own source. Never add a `net481` target or
+an `#if` for 1.6 back to `main`; a 1.6 fix is a commit on `release/1.6`. Both `Assemblies/`
+directories are gitignored.
 
 A `pre-commit` hook at `.githooks/pre-commit` runs `build.sh` and `test.sh` and blocks the commit if
 either fails. It is not enabled by default (`core.hooksPath` is local git config, not versioned) —

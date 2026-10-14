@@ -303,29 +303,17 @@ public static class VectorLightShader
     // if either stub changes. Batching on 1.7 needs the batched program as its own shader, the same
     // one-shader-per-state pattern as issue #257.
     //
-    // A property rather than an #if around an early return, so the rest of ValidateBatch stays one
-    // code path that both builds compile and neither flags as unreachable.
-    private static bool DrawsOnlyKeywordlessVariants => OnWaylith;
+    // A named property rather than a bare early return, so the refusal says which property of the
+    // engine it rests on. Constant since 1.6 was frozen on release/1.6: every build of main is 1.7.
+    private static bool DrawsOnlyKeywordlessVariants => true;
 
     // RimWorld 1.7 bakes a bundle shader's blend from its property defaults when it builds the
     // pipeline (UnityStubs UnityShaderAsset.ReadState) and never reads _SrcBlend/_DstBlend off a
     // material, so a multiply composition needs a shader whose blend is fixed. Issue #257.
-    private static bool BlendIsBakedPerShader => OnWaylith;
-
-    // Whether this build runs on RimWorld 1.7's Waylith engine. Two named facts read it rather than
-    // the #if appearing at each use, so every place that depends on the engine says WHICH property
-    // of the engine it depends on.
-    private static bool OnWaylith
-    {
-        get
-        {
-#if RIMWORLD_1_7
-            return true;
-#else
-            return false;
-#endif
-        }
-    }
+    // Constant for the same reason as DrawsOnlyKeywordlessVariants; kept named so the multiply
+    // fallback's dependence on it stays readable, and so a future engine that reads material blend
+    // again is a one-line change.
+    private static bool BlendIsBakedPerShader => true;
 
     // Runs once, behind BatchAvailable's cache. Each refusal is logged as a MESSAGE and not a
     // warning: unlike a missing shader, none of these is a broken installation. They are machines

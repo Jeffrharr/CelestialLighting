@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -24,7 +24,7 @@
 
   <!-- Links the actual shipped Source/Formulas.cs into this project (not a copy) so the pure
        formula unit tests exercise exactly the code that runs inside RimWorld. Formulas.cs has no
-       UnityEngine/Verse dependency, so it compiles cleanly under net8.0 as-is. -->
+       UnityEngine/Verse dependency, so it compiles cleanly under net10.0 as-is. -->
   <ItemGroup>
     <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
     <Compile Include="../../Source/PenumbraMath.cs" Link="PenumbraMath.cs" />
@@ -45,7 +45,7 @@
          in), so the equivalence test can drive the real vertex loop offline. Depends on
          NightDesaturationMath above for CellWash and WashAlpha. -->
     <Compile Include="../../Source/NightWashWindow.cs" Link="NightWashWindow.cs" />
-    <!-- Subsystem 13 pure core (weather dimming). Verse-free, so it compiles under net8.0 as-is.
+    <!-- Subsystem 13 pure core (weather dimming). Verse-free, so it compiles under net10.0 as-is.
          WeatherDimmingMathTests also exercises PurkinjeMath above, since §13's whole purpose is to
          feed §9 an apparent brightness that finally varies with weather. -->
     <Compile Include="../../Source/WeatherDimmingMath.cs" Link="WeatherDimmingMath.cs" />
@@ -146,7 +146,7 @@
     <Compile Include="../../Source/EclipseSettings.cs" Link="EclipseSettings.cs" />
     <Compile Include="../../Source/BloodMoonMath.cs" Link="BloodMoonMath.cs" />
     <Compile Include="../../Source/CelestialSettingsMath.cs" Link="CelestialSettingsMath.cs" />
-    <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net8.0 as-is. -->
+    <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net10.0 as-is. -->
     <Compile Include="../../Source/IndoorOcclusionMath.cs" Link="IndoorOcclusionMath.cs" />
     <!-- Which under-roof sky source answers a cell. Pure ordering logic, linked so the seam rule (an
          owning mod's zero is a real zero, not an invitation for §7c to fill in) is testable offline. -->
@@ -199,7 +199,7 @@
          (directly above) for the elevation->glow curve it re-references to the platform's own
          horizon, and on BloodMoonMath for the Rec. 601 luma weights — all three already linked. -->
     <Compile Include="../../Source/LimbRefractionMath.cs" Link="LimbRefractionMath.cs" />
-    <!-- Subsystem 15 pure core (eaves). Verse-free, so it compiles under net8.0 as-is. Shared by
+    <!-- Subsystem 15 pure core (eaves). Verse-free, so it compiles under net10.0 as-is. Shared by
          §4's shadow mesh and §7b's occlusion, which is the whole reason it is its own file. -->
     <Compile Include="../../Source/EavesMath.cs" Link="EavesMath.cs" />
     <!-- Subsystem 15b pure core (how dark the ground under an eave is). Reads one constant off
