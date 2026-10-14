@@ -27156,6 +27156,66 @@ built to let someone make by looking. What this section adds is the number that 
 the wash costs **2.2× the whole mod's frame** and **5.9× the mask's worst frame**, and it is the only
 term in vector lighting that makes vanilla do work on our behalf.
 
+#### Not rebaking a lamp that cannot see the door (`vector_light_unseen_skip`, `VectorLightUnseenMath`)
+
+The changed-dirty feature (phase 9) stopped a spurious rebake from dirtying sections, but it could only
+find out a rebake was spurious by doing it. On the stress colony the lamp walled off from a swinging
+door still gathered, baked, rebuilt and re-uploaded nine times an opening to get the grid it already
+had. Three bakes in four came out unchanged.
+
+**The question can be answered before the bake, from the polygon the lamp already holds.** That
+polygon is a fan of rays, each stopped at its first hit. If the changed cells lie wholly outside it,
+no ray reached them, so no hit can move. Every old endpoint outside the cells is still an endpoint, so
+any ray the change adds lands on a chord already drawn. A rebake would only add collinear vertices.
+`MarkGeometryDirtyAround` now asks `VectorLightUnseenMath.TouchesRect` first and leaves such a lamp
+clean. Two details carry the soundness:
+
+- **The margin is the sagitta of one base-ray step, plus 0.05 cells.** Where no wall stops a ray, the
+  fan ends in chords that cut inside the circle. A door corner in that sliver is outside the fan but
+  inside reach, and a rebake would find it. At radius 40 the sliver is 0.21 cells deep.
+- **Only a clean polygon can answer "no".** A polygon that is already dirty, unbuilt, or deferred by
+  the view cull describes older geometry, so the lamp gets marked. A moved blocker still invalidates
+  the silhouette memo and the vanilla samples, because those really did change.
+
+**Offline, the claim is tested as a rebake.** `VectorLightUnseenMathTests` sweeps 400 random layouts ×
+every ordered pair of door states (shut, open, part-open). Each time the predicate declines, it rebakes
+anyway and asserts the **coverage grid** is byte-identical. The grid is compared rather than the
+polygon, because collinear vertices are expected. On that sweep 1,900 of 2,400 pairs are declined.
+Three mutants fail it: no containment test, no sagitta, and a rectangle shrunk by 0.3 cells.
+
+**Live, on `stress_door_visual`'s full arm** (500 lamps, 30 doors, glow blocker on): off/on/off/on in
+one boot, 240 swings per arm, Circinus loaded.
+
+| | off | on | off | on |
+|---|---|---|---|---|
+| emitters marked | 52,097 | 28,399 | 52,096 | 28,504 |
+| `vector_light_unseen_skips` | 0 | 23,697 | 0 | 23,592 |
+| bakes | 8,800 | 6,517 | 12,439 | 6,580 |
+| unchanged bakes | 6,268 | 3,331 | 9,199 | 3,373 |
+| bake wall ms (calling thread) | 533 | 498 | 780 | 446 |
+| gather wall ms | 186 | 116 | 180 | 102 |
+| `circ_vlbuilddirty` total / max ms | 141 / 10.0 | 136 / 12.0 | 180 / 14.6 | 104 / 6.8 |
+
+Changed bakes stay at about 3,200 in each arm. The first off arm reads 2,532 because the view cull
+deferred 632 of its bakes. So the skips come out of the unchanged bakes and none out of the changed
+ones, which is the sign the predicate did not skip a lamp that could see its door. The win is in work
+done: gather −40%, bakes −25 to −47%. **The worst frame did not reliably improve.** It went 10.0 → 12.0
+in one pair and 14.6 → 6.8 in the other, inside the parallel bake's own spread. The remaining
+`BuildDirty` time is mostly lamps that *can* see a door.
+
+**Frames.** The shut-door captures differ between arms on 3.5% of pixels, p99 ΔE 0.96, median 0.
+That is against a same-build control of 0.17%. The difference is the kept polygon's vertex layout: a
+fan with fewer collinear vertices interpolates its penumbra a level differently. A forced whole-map
+rebake right after each capture brings on and off back to the control's 0.18%. The shipped off arm
+moves by the same order under that rebake on its own (11% of pixels, at most 4 levels), because a
+polygon's vertex layout already depends on its door history. This is that same class of difference,
+below the visibility bar. `Tests/Screenshots/unseen_skip_where.png` masks where pixels moved: off vs on
+beside the control, then the same pair after the rebake.
+
+`vector_light_invalidation_radius`'s second arm now reads one mark and one skip where it read two
+marks. Its wall at (24,9) is in reach of lamps at (23,3) and (23,14), and the second is behind the
+full-width wall at z = 11.
+
 ### Vector lighting: Astryl's extra vibrant lighting (`VectorLightReachMath`, `vectorLightReach`, `Tests/Scenarios/vector_light_reach.json`)
 
 Vanilla's falloff reaches its own radius and stops dead. At `d = glowRadius` the linear term is
