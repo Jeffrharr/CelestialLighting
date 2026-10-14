@@ -978,14 +978,54 @@ public static class VectorLightOverlay
         VectorLightField.LightEntry entry, Texture2D field, UnsafeList<Color32> colors, int diameter,
         IntVec3 start, IntVec3 lightCell, VectorLightVoid.VoidCells voidCells)
     {
-        int count = diameter * diameter;
-
         // Both read once and threaded down, for the reason the mask's own locals are: this runs
         // once per texel of every emitter's square whenever a light resamples.
         bool gapParity = CelestialLightingFeatures.VectorLightGapParity;
         bool bentPath = VectorLightMask.BentPath;
 
-        NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
+        // Two ways to put the texels on the GPU, chosen per call. In place (RimWorld 1.7) writes
+        // Waylith's own CPU level in its native row order and copies it into the existing image; see
+        // WaylithFieldUpload for why Apply is the expensive half on 1.7. The Apply path is the
+        // original one and the fallback whenever the in-place path cannot prove the simple case —
+        // including a texture's first fill, which has no GPU image to copy into yet.
+        //
+        // The loop below is shared: only WHERE texel i lands differs, which is the sink's job. Unity
+        // order puts row 0 at the bottom, Waylith's native order at the top, so the in-place sink
+        // flips rows (VectorLightMath.FlippedRowIndex) and the values written are identical either way.
+        // Sinks are structs passed as a generic argument, so the JIT specialises the loop per sink and
+        // the original path keeps writing through NativeArray's indexer exactly as it always did.
+        if (CelestialLightingFeatures.VectorLightFieldInPlace
+            && WaylithFieldUpload.TryBegin(field, out WaylithFieldUpload.Target target))
+        {
+            FillField(entry, new WaylithFieldUpload.NativeOrderSink(target.Level, diameter), colors, diameter, start, lightCell, voidCells, gapParity, bentPath);
+            target.Upload();
+            return;
+        }
+
+        FillField(entry, new UnityOrderSink(field.GetRawTextureData<Color32>()), colors, diameter, start, lightCell, voidCells, gapParity, bentPath);
+        field.Apply(updateMipmaps: false);
+    }
+
+    // The Apply path's destination: the texture's raw data in Unity row order, as it always was.
+    // Not readonly: the 1.7 stub's NativeArray indexer setter is a mutating member, so a readonly
+    // field would have the compiler reject the write. The array itself is a view; copying the struct
+    // copies the view, not the texels.
+    private struct UnityOrderSink : WaylithFieldUpload.ITexelSink
+    {
+        private NativeArray<Color32> texels;
+
+        public UnityOrderSink(NativeArray<Color32> texels) => this.texels = texels;
+
+        public void Write(int i, Color32 texel) => texels[i] = texel;
+    }
+
+    private static void FillField<TSink>(
+        VectorLightField.LightEntry entry, TSink texels, UnsafeList<Color32> colors,
+        int diameter, IntVec3 start, IntVec3 lightCell, VectorLightVoid.VoidCells voidCells,
+        bool gapParity, bool bentPath)
+        where TSink : struct, WaylithFieldUpload.ITexelSink
+    {
+        int count = diameter * diameter;
 
         for (int i = 0; i < count; i++)
         {
@@ -1019,10 +1059,8 @@ public static class VectorLightOverlay
             // ordinary ground, 0 on the open void outside a hull. `voidCells` is inactive on every
             // map with an atmosphere, so this is the same unconditional 255 it always was there.
             glow.a = voidCells.Active ? voidCells.AlphaAt(cellX, cellZ) : VectorLightVoid.SurfaceAlpha;
-            texels[i] = glow;
+            texels.Write(i, glow);
         }
-
-        field.Apply(updateMipmaps: false);
     }
 
     // How much of this emitter's vanilla light the MASK LEFT STANDING at one cell, as the byte scale

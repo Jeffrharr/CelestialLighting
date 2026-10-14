@@ -761,6 +761,18 @@ public static class VectorLightMath
         return hits ? t : -1f;
     }
 
+    // Index of texel `i` (row-major, row 0 at the BOTTOM, Unity's order) in the same square stored
+    // with row 0 at the TOP — RimWorld 1.7's native order, which WaylithFieldUpload writes into
+    // directly. Columns are untouched; only the row is mirrored. Its own function because a row flip
+    // that is off by one row compiles, renders, and shifts every field texture by a cell, which reads
+    // as a mask bug rather than an index bug.
+    public static int FlippedRowIndex(int i, int width)
+    {
+        int row = i / width;
+        int column = i - row * width;
+        return (width - 1 - row) * width + column;
+    }
+
     // Vanilla's own falloff curve, evaluated at a EUCLIDEAN distance rather than the geodesic one the
     // flood accumulates. Keeping the curve is deliberate: a lamp should read at about the brightness
     // its glowRadius has always given it, so that what changed on screen is unmistakably the SHAPE of

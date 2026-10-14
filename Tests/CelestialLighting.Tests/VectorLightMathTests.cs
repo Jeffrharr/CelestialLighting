@@ -2421,4 +2421,45 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.MaskBeamStrengthFor(VectorLightMath.DefaultBeamStrengthScale),
             Is.LessThan(VectorLightMath.MaskBeamStrength));
     }
+
+    // ---- FlippedRowIndex: Unity row order -> Waylith native row order --------------------------
+    //
+    // The in-place field upload writes each texel straight into Waylith's level, row 0 at the TOP.
+    // A flip off by one row still renders — it shifts every emitter's field by a cell, which reads as
+    // a mask defect — so the mapping is pinned exactly, including the 1x1 and odd-width cases a
+    // radius-0 glower and every real (odd) diameter produce.
+
+    [TestCase(0, 3, 6)]   // bottom-left -> top-left
+    [TestCase(2, 3, 8)]   // bottom-right -> top-right
+    [TestCase(4, 3, 4)]   // centre of an odd square stays put
+    [TestCase(6, 3, 0)]   // top-left -> bottom-left
+    [TestCase(8, 3, 2)]   // top-right -> bottom-right
+    [TestCase(0, 1, 0)]   // a single texel has nowhere to go
+    [TestCase(1, 2, 3)]
+    [TestCase(3, 2, 1)]
+    public void FlippedRowIndex_MirrorsTheRowAndKeepsTheColumn(int i, int width, int expected)
+    {
+        Assert.That(VectorLightMath.FlippedRowIndex(i, width), Is.EqualTo(expected));
+    }
+
+    // A permutation, and its own inverse: every texel lands exactly once, and flipping twice is the
+    // identity. Swept over every diameter a radius up to 30 produces, so no width escapes.
+    [Test]
+    public void FlippedRowIndex_IsAnInvolutivePermutationForEveryDiameter()
+    {
+        for (int width = 1; width <= 61; width++)
+        {
+            int count = width * width;
+            bool[] hit = new bool[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                int j = VectorLightMath.FlippedRowIndex(i, width);
+                Assert.That(j, Is.InRange(0, count - 1), $"width {width}, texel {i}");
+                Assert.That(hit[j], Is.False, $"width {width}: two texels land on {j}");
+                hit[j] = true;
+                Assert.That(VectorLightMath.FlippedRowIndex(j, width), Is.EqualTo(i), $"width {width}, texel {i}");
+            }
+        }
+    }
 }

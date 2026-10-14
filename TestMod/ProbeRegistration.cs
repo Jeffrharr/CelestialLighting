@@ -2415,6 +2415,17 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // ForceRebuild so an arm flip re-uploads every field through the path it selects; without one
+        // the next arm would measure textures the previous arm had already filled.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightFieldInPlaceKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightFieldInPlace = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: true);
+
         // The four halves of one question, registered over one shared walk. Pinned together or not
         // at all: a peak of zero means something entirely different when the cell count is zero, and
         // reading one without the other is how a probe reports a healthy number about nothing.
