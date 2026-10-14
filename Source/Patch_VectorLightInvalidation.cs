@@ -37,7 +37,7 @@ public static class VectorLightInvalidation
     public static void BlockerChanged(GlowGrid grid, IntVec3 cell)
     {
         VectorLightField.MarkGeometryDirtyAround(
-            GlowGridAccess.GetMap(grid), cell, blockerMoved: true);
+            GlowGridAccess.GetMap(grid), cell, CellRect.SingleCell(cell), blockerMoved: true);
     }
 }
 
@@ -135,7 +135,8 @@ public static class VectorLightDoorEvents
             // zero, which is a step or two later, and the memo notices that by re-reading the door
             // rather than by being told. If the door was BUILT rather than opened, LightBlockerAdded
             // fired and already invalidated it.
-            VectorLightField.MarkGeometryDirtyAround(map, door.Position, blockerMoved: false);
+            VectorLightField.MarkGeometryDirtyAround(
+                map, door.Position, door.OccupiedRect(), blockerMoved: false);
         }
 
         // Registered on close as well as open — an interrupted door animates back down — and NOT

@@ -107,7 +107,8 @@ public class GameComponent_DoorAperture : GameComponent
             // The leaves moved and nothing was built, so a recorded silhouette is still the wall
             // it was — issue #188 item C, and the reason this parameter exists at all. Eight of the
             // nine steps in a swing come through here.
-            VectorLightField.MarkGeometryDirtyAround(door.Map, door.Position, blockerMoved: false);
+            VectorLightField.MarkGeometryDirtyAround(
+                door.Map, door.Position, door.OccupiedRect(), blockerMoved: false);
             DirtyRequests++;
         }
 

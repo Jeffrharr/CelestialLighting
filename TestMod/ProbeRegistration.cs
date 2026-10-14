@@ -742,6 +742,12 @@ public static class ProbeRegistration
         // and neither number can say that on its own.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_unchanged_bakes", VectorLightBakeProbe.Metric.UnchangedBakes));
+        // Emitters in reach of a change that the unseen skip left clean. Read beside
+        // vector_light_unchanged_bakes across the skip's two arms: the skips should come out of the
+        // unchanged bakes, one for one, and a drop in the CHANGED bakes would mean it skipped a lamp
+        // that could see the door.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_unseen_skips", VectorLightBakeProbe.Metric.UnseenSkips));
         // What a door swing's blocker write would have cost, counted rather than inferred. Read as a
         // RATIO of each other -- calls is how often we provoke vanilla, sections is what it costs --
         // and beside vector_light_section_dirties, which is what we flag on purpose. Both read 0 with
@@ -2198,6 +2204,11 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightChangedDirty = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // No ForceRebuild: the skip only decides what a LATER change marks, and holds no state of its
+        // own. An arm that flips it starts or stops skipping from the next door step.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightUnseenSkipKey,
+            enabled => CelestialLightingFeatures.VectorLightUnseenSkip = enabled);
         // Both draw-side holds are pure skips: flipping one changes no state a frame depends on, so
         // neither needs a ForceRebuild. The props hold's record is on the entry and is compared
         // against the live block each frame, so an arm switching it on mid-boot simply starts
