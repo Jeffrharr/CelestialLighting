@@ -108,13 +108,16 @@ internal static class WaylithFieldUpload
     // emitter samples whatever the slice held before. The field's CPU level is already the exact texels
     // its own GPU image holds (TryBegin's premise), so those go into the layer instead.
     //
-    // FLIPPED ON THE WAY IN, because the two texture kinds disagree about row order. A Texture2D's CPU
-    // level is Waylith's native order (row 0 at the top — see NativeOrderSink), but a Texture2DArray
-    // layer is uploaded in UNITY order: Waylith.Rendering.Texture2DArray.SetPixelData copies Unity's
-    // bytes straight into the layer with no flip. Copying the level unflipped mirrors every slice
-    // vertically. A lamp centred in its square hides that almost completely, which is how it first
-    // measured: batched frames matching at each lamp and drifting darker toward the walls and doors,
-    // where the mirrored square puts another side's glow.
+    // NOT FLIPPED, because both images are in Waylith's native row order (row 0 at the top — see
+    // NativeOrderSink). The loader's SPIR-V rewrite turns every texture sample's v into 1 - v, the
+    // array's included, so a layer has to hold its rows exactly as the field's own image does.
+    //
+    // This was briefly flipped, and the measurement that justified it could not see the flip: the
+    // batched draw's arrays were not reaching the shader then (see VectorLightShader.SetBatch), so
+    // every batched emitter drew nothing and no slice orientation could change the frame. Once the
+    // arrays arrived, the flipped slices measured as a mirror — a lamp low in its room drew too
+    // bright above itself and too dark below, each fragment subtracting the glow from the other
+    // side of the lamp.
     //
     // False when the field is not the simple case or the array has no GPU image yet; the caller
     // leaves the slot unrecorded and tries again next frame rather than claiming a copy it did not do.
@@ -129,26 +132,11 @@ internal static class WaylithFieldUpload
         if (!TryBegin(field, out Target target))
             return false;
 
-        int rowBytes = slices.width * 4;
-        byte[] unityOrder = LayerScratch(target.Level.Length);
-        TextureRowOrderMath.FlipRows(target.Level, unityOrder, rowBytes, slices.height);
-
-        // Staged before this returns, so the scratch is free to be rewritten by the next slice.
-        GpuTextureService.UploadRgba32ToArrayLayer(array, slices.width, slices.height, layer, unityOrder, batch: true);
+        // Staged before this returns, so the level is free to be rewritten by the field's next
+        // refresh. TryBegin checked it is exactly width*height texels, which is the length
+        // UploadRgba32ToArrayLayer copies whole.
+        GpuTextureService.UploadRgba32ToArrayLayer(array, slices.width, slices.height, layer, target.Level, batch: true);
         return true;
-    }
-
-    // Resized to exactly the length asked for, never grow-only: a buffer larger than the layer would
-    // hand UploadRgba32ToArrayLayer trailing bytes from a previous, larger square, and it copies the
-    // whole array it is given.
-    private static byte[] layerScratch = new byte[0];
-
-    private static byte[] LayerScratch(int length)
-    {
-        if (layerScratch.Length != length)
-            layerScratch = new byte[length];
-
-        return layerScratch;
     }
 
     private static bool IsSimpleRgba32(
