@@ -115,6 +115,9 @@ public sealed class VectorLightBakeProbe : IProbe
         UploadWallMs,
         UploadMeshWallMs,
         UploadFieldWallMs,
+
+        // The UV1 mesh write inside UploadFieldWallMs (a part of it, not an addition).
+        UploadFieldUvsWallMs,
         FieldTextureUploads,
         FieldUvOnlyUploads,
 
@@ -408,6 +411,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.UploadFieldWallMs)
             return (float)VectorLightField.UploadFieldWallMs;
+
+        if (metric == Metric.UploadFieldUvsWallMs)
+            return (float)VectorLightField.UploadFieldUvsWallMs;
 
         if (metric == Metric.FieldTextureUploads)
             return VectorLightField.FieldTextureUploads;

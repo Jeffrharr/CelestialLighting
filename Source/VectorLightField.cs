@@ -61,6 +61,7 @@ public static class VectorLightField
 
         public Color Color;
         public Mesh Mesh;
+
         public MaterialPropertyBlock Props;
 
         // A SECOND block for the indoor multiply layer, because that layer draws this same fan a
@@ -404,6 +405,7 @@ public static class VectorLightField
         GatherWallMs = 0.0;
         UploadMeshWallMs = 0.0;
         UploadFieldWallMs = 0.0;
+        UploadFieldUvsWallMs = 0.0;
         FieldTextureUploads = 0;
         FieldUvOnlyUploads = 0;
         PropsWrites = 0;
@@ -795,6 +797,12 @@ public static class VectorLightField
     // have said which third of the frame to look at and nothing about what to do when you got there.
     public static double UploadMeshWallMs;
     public static double UploadFieldWallMs;
+
+    // The UV1 write alone, INSIDE UploadFieldWallMs rather than beside it — "of which", not "plus".
+    // On 1.7 that one SetUVs is not a channel write: UnityStubs decodes the whole mesh back into
+    // managed arrays and re-encodes all of it, so it may be most of what the field clock reads even
+    // after the texture went in place. Split out so that is measured rather than assumed.
+    public static double UploadFieldUvsWallMs;
 
     // The two ways a glow-field refresh can end: the texture refilled and pushed to the GPU, or only
     // UV1 rewritten because the texture was already right.
