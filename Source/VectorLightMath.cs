@@ -1997,6 +1997,8 @@ public static class VectorLightMath
         internal bool[] Sampled = new bool[0];
         internal float[] Cos = new float[0];
         internal float[] Sin = new float[0];
+        internal float[] WindowMin = new float[0];
+        internal float[] WindowMax = new float[0];
 
         internal void EnsureColumns(int span)
         {
@@ -2010,6 +2012,8 @@ public static class VectorLightMath
         {
             Cos = Grow(Cos, count);
             Sin = Grow(Sin, count);
+            WindowMin = Grow(WindowMin, count);
+            WindowMax = Grow(WindowMax, count);
         }
 
         private static T[] Grow<T>(T[] array, int length)
@@ -2258,12 +2262,25 @@ public static class VectorLightMath
         public readonly int First;
         public readonly int Last;
 
-        private RayFan(float[] cos, float[] sin, int first, int last)
+        // The min and max of polygon.Distances over SampleLit's window [cursor - CursorSlack,
+        // cursor + 1 + CursorSlack], per cursor, computed once per fan rather than once per SAMPLE.
+        // The window depends only on the cursor, and a partial cell's four samples, its neighbours'
+        // samples and every row's samples land on the same few cursors over and over — the per-sample
+        // loop recomputed an identical six-element min/max each time. Same floats, same comparisons,
+        // so the early-out answers are bit-identical; VectorLightCoverageBoundsTests holds that.
+        // Valid only for cursors whose whole window lies inside [First, Last]; SampleLit checks that
+        // before it reads, exactly as it checked before it looped.
+        public readonly float[] WindowMin;
+        public readonly float[] WindowMax;
+
+        private RayFan(float[] cos, float[] sin, int first, int last, float[] windowMin, float[] windowMax)
         {
             Cos = cos;
             Sin = sin;
             First = first;
             Last = last;
+            WindowMin = windowMin;
+            WindowMax = windowMax;
         }
 
         // The arrays come from the caller's scratch and may be LONGER than the fan, which is why
@@ -2294,7 +2311,33 @@ public static class VectorLightMath
                     last = i;
             }
 
-            return new RayFan(cos, sin, first, last);
+            FillWindows(polygon.Distances, first, last, scratch.WindowMin, scratch.WindowMax);
+
+            return new RayFan(cos, sin, first, last, scratch.WindowMin, scratch.WindowMax);
+        }
+
+        // Every cursor whose window fits inside [first, last] — the only cursors SampleLit reads.
+        private static void FillWindows(float[] distances, int first, int last, float[] min, float[] max)
+        {
+            for (int cursor = first + CursorSlack; cursor + 1 + CursorSlack <= last; cursor++)
+            {
+                float lo = distances[cursor - CursorSlack];
+                float hi = lo;
+
+                for (int i = cursor - CursorSlack + 1; i <= cursor + 1 + CursorSlack; i++)
+                {
+                    // Compares rather than Math.Min/Max, as the per-sample loop did: Min/Max
+                    // propagate a NaN that `<` skips, and the point is the identical answer.
+                    if (distances[i] < lo)
+                        lo = distances[i];
+
+                    if (distances[i] > hi)
+                        hi = distances[i];
+                }
+
+                min[cursor] = lo;
+                max[cursor] = hi;
+            }
         }
     }
 
@@ -2466,28 +2509,76 @@ public static class VectorLightMath
 
         if (low >= fan.First && high <= fan.Last)
         {
-            float min = polygon.Distances[low];
-            float max = min;
-
-            for (int i = low + 1; i <= high; i++)
-            {
-                float boundary = polygon.Distances[i];
-
-                if (boundary < min)
-                    min = boundary;
-
-                if (boundary > max)
-                    max = boundary;
-            }
-
-            if (distance <= min)
+            if (distance <= fan.WindowMin[cursor])
                 return true;
 
-            if (distance > max)
+            if (distance > fan.WindowMax[cursor])
                 return false;
         }
 
-        return IsLit(polygon, lightX, lightZ, x, z);
+        return IsLitNear(polygon, cursor, lightX, lightZ, x, z);
+    }
+
+    // IsLit, with the angle search confined to the cursor's slack window instead of a binary search
+    // over every ray. Same arithmetic in the same order — the distance, the double-precision atan2
+    // cast to float, the angle-space lerp — so the answer is IsLit's to the bit; only HOW the bracket
+    // [lo, lo + 1] is found differs.
+    //
+    // WHY THE WINDOW HOLDS THE BRACKET: it is the same window SampleLit's early-out already relies on
+    // containing it (see CursorSlack), and VectorLightCoverageBoundsTests fails byte for byte if it
+    // ever does not. When the angle falls outside the window anyway — the fan's wrap, a cursor at
+    // either end — this hands over to BoundaryDistanceAt, which searches the whole polygon.
+    //
+    // Measured worth having because the early-out decides fewer than half the samples: 50-72% of
+    // them reach this exact test in Tools/VectorLightBench's scenes.
+    private static bool IsLitNear(
+        LightPolygon polygon, int cursor, float lightX, float lightZ, float x, float z)
+    {
+        float dx = x - lightX;
+        float dz = z - lightZ;
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        if (distance <= 0f)
+            return true;
+
+        float angle = (float)Math.Atan2(dz, dx);
+        return distance <= BoundaryNear(polygon, cursor, angle);
+    }
+
+    // BoundaryDistanceAt's answer, searched for in [cursor - CursorSlack, cursor + 1 + CursorSlack].
+    // BoundaryDistanceAt's binary search ends on lo = the LAST ray whose angle is <= angle, with
+    // hi = lo + 1; the scan below finds that same index whenever the window brackets the angle
+    // strictly inside the polygon's angular range, and defers to the full search otherwise.
+    private static float BoundaryNear(LightPolygon polygon, int cursor, float angle)
+    {
+        int last = polygon.Count - 1;
+        int low = cursor - CursorSlack;
+        int high = cursor + 1 + CursorSlack;
+
+        bool inside = polygon.Count > 1 && low >= 0 && high <= last
+            && angle > polygon.Angles[0] && angle < polygon.Angles[last]
+            && polygon.Angles[low] <= angle && polygon.Angles[high] > angle;
+
+        if (!inside)
+            return BoundaryDistanceAt(polygon, angle);
+
+        int lo = LastAtOrBelow(polygon.Angles, low, high, angle);
+
+        return Lerp(
+            polygon.Angles[lo], polygon.Distances[lo],
+            polygon.Angles[lo + 1], polygon.Distances[lo + 1], angle);
+    }
+
+    // The last index in [low, high) whose value is <= target. The caller guarantees values[low] <=
+    // target < values[high], so one exists and lo + 1 <= high.
+    private static int LastAtOrBelow(float[] values, int low, int high, float target)
+    {
+        int lo = low;
+
+        for (int i = low + 1; i < high; i++)
+            lo = values[i] <= target ? i : lo;
+
+        return lo;
     }
 
     // One sample row answered the long way, for the degenerate case SampleRow hands over.
