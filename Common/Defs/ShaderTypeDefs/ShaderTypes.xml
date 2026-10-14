@@ -50,6 +50,16 @@
     <defName>CL_VectorLightMaxLift</defName>
     <shaderPath>VectorLightMaxLift</shaderPath>
   </ShaderTypeDef>
+  <!-- The batched draw's programs as shaders of their own, additive and surface lift: RimWorld 1.7
+       never selects a keyword variant, so VectorLightMax's batched variant is unreachable there. -->
+  <ShaderTypeDef>
+    <defName>CL_VectorLightMaxBatched</defName>
+    <shaderPath>VectorLightMaxBatched</shaderPath>
+  </ShaderTypeDef>
+  <ShaderTypeDef>
+    <defName>CL_VectorLightMaxLiftBatched</defName>
+    <shaderPath>VectorLightMaxLiftBatched</shaderPath>
+  </ShaderTypeDef>
 
   <!-- The aurora curtain's field, evaluated per fragment (§11a). Falls back to the CPU bake. -->
   <ShaderTypeDef>

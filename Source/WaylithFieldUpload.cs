@@ -101,6 +101,56 @@ internal static class WaylithFieldUpload
         return true;
     }
 
+    // Copies a field's current texels into one layer of the batched draw's texture array, on 1.7.
+    //
+    // WHY NOT Graphics.CopyTexture. UnityStubs resolves a copy's destination only as a Texture2D or a
+    // RenderTexture, so a Texture2DArray slice is silently skipped: no copy, no error, and the batched
+    // emitter samples whatever the slice held before. The field's CPU level is already the exact texels
+    // its own GPU image holds (TryBegin's premise), so those go into the layer instead.
+    //
+    // FLIPPED ON THE WAY IN, because the two texture kinds disagree about row order. A Texture2D's CPU
+    // level is Waylith's native order (row 0 at the top — see NativeOrderSink), but a Texture2DArray
+    // layer is uploaded in UNITY order: Waylith.Rendering.Texture2DArray.SetPixelData copies Unity's
+    // bytes straight into the layer with no flip. Copying the level unflipped mirrors every slice
+    // vertically. A lamp centred in its square hides that almost completely, which is how it first
+    // measured: batched frames matching at each lamp and drifting darker toward the walls and doors,
+    // where the mirrored square puts another side's glow.
+    //
+    // False when the field is not the simple case or the array has no GPU image yet; the caller
+    // leaves the slot unrecorded and tries again next frame rather than claiming a copy it did not do.
+    internal static bool TryUploadToLayer(
+        UnityEngine.Texture2D field, UnityEngine.Texture2DArray slices, int layer)
+    {
+        GpuTextureAllocation array = slices.GpuTexture;
+
+        if (array == null || field.width != slices.width || field.height != slices.height)
+            return false;
+
+        if (!TryBegin(field, out Target target))
+            return false;
+
+        int rowBytes = slices.width * 4;
+        byte[] unityOrder = LayerScratch(target.Level.Length);
+        TextureRowOrderMath.FlipRows(target.Level, unityOrder, rowBytes, slices.height);
+
+        // Staged before this returns, so the scratch is free to be rewritten by the next slice.
+        GpuTextureService.UploadRgba32ToArrayLayer(array, slices.width, slices.height, layer, unityOrder, batch: true);
+        return true;
+    }
+
+    // Resized to exactly the length asked for, never grow-only: a buffer larger than the layer would
+    // hand UploadRgba32ToArrayLayer trailing bytes from a previous, larger square, and it copies the
+    // whole array it is given.
+    private static byte[] layerScratch = new byte[0];
+
+    private static byte[] LayerScratch(int length)
+    {
+        if (layerScratch.Length != length)
+            layerScratch = new byte[length];
+
+        return layerScratch;
+    }
+
     private static bool IsSimpleRgba32(
         Waylith.Rendering.Texture2D core, TexturePixelData cpu, int width, int height)
     {

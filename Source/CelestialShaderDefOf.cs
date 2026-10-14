@@ -27,6 +27,10 @@ public static class CelestialShaderDefOf
 
     public static ShaderTypeDef CL_VectorLightMaxLift;
 
+    public static ShaderTypeDef CL_VectorLightMaxBatched;
+
+    public static ShaderTypeDef CL_VectorLightMaxLiftBatched;
+
     public static ShaderTypeDef CL_Aurora;
 
     static CelestialShaderDefOf()

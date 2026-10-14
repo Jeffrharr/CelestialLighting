@@ -2305,7 +2305,8 @@ public static class ProbeRegistration
             {
                 CelestialLightingFeatures.VectorLightDrawBatch = enabled;
                 VectorLightRedraw.ForceRebuild();
-            });
+            },
+            defaultEnabled: false);
         // ForceRebuild for the same reason again, and the rebuild is doing something slightly
         // different here: ClearAll drops the entries, and every memo goes with them. That is what an
         // arm switching this flag NEEDS — a memo carried over from the previous arm would be reused

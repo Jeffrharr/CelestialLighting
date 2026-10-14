@@ -102,7 +102,11 @@ v2f vert(appdata v)
     // is not linear, and this interpolates the place to look it up.
     o.vanillaUv = v.vanillaUv.xy;
 
-    #if defined(VECTORLIGHT_BATCHED)
+    // NOT IN THE DECOY. The batched shaders carry a never-drawn CL_WAYLITH_DECOY variant (see
+    // VectorLightMaxBatched.shader), and a decoy that still read the uniform arrays would leave
+    // them hoisted into the block RimWorld 1.7 cannot see. Inert everywhere else: the per-emitter
+    // shaders never declare the keyword.
+    #if defined(VECTORLIGHT_BATCHED) && !defined(CL_WAYLITH_DECOY)
     // Rounded rather than truncated. The slot arrives as a float that came from an int,
     // and a float that is meant to be 3 can arrive as 2.9999995 through the vertex
     // stream's own precision — truncation would then read emitter 2's colour for every
@@ -117,6 +121,11 @@ v2f vert(appdata v)
 
 fixed4 frag(v2f i) : SV_Target
 {
+    // The decoy touches nothing — see the vertex program's matching guard.
+    #ifdef CL_WAYLITH_DECOY
+    return 0;
+    #endif
+
     // WHERE THE FOUR PER-EMITTER NUMBERS COME FROM IS THE WHOLE VARIANT. Everything
     // below this block is one copy of the composition, shared by both paths, so a change
     // to the arithmetic cannot land on one variant and miss the other — which is the

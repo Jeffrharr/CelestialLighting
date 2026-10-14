@@ -54,6 +54,14 @@ public static class VectorLightShader
 
     public const string LiftShaderName = "CelestialLighting/VectorLightMaxLift";
 
+    // The batched programs as shaders of their own, additive and surface lift. RimWorld 1.7 never
+    // selects a keyword variant, so VECTORLIGHT_BATCHED on VectorLightMax is unreachable there; these
+    // #define it and include the same program. See VectorLightMaxBatched.shader.
+    public const string BatchedShaderPath = "VectorLightMaxBatched";
+    public const string BatchedShaderName = "CelestialLighting/VectorLightMaxBatched";
+    public const string LiftBatchedShaderPath = "VectorLightMaxLiftBatched";
+    public const string LiftBatchedShaderName = "CelestialLighting/VectorLightMaxLiftBatched";
+
     // How much of vanilla's sampled glow the fragment program subtracts. One is the feature; zero
     // makes the shader reproduce MoteGlow exactly, which is what the live A/B's control arm needs to
     // separate "the composition changed the frame" from "the replacement shader changed the frame".
@@ -97,10 +105,6 @@ public static class VectorLightShader
     // Named here because the C# side is what has to obey it; the shader's define is the authority.
     public const int BatchCapacity = 64;
 
-    // The keyword that selects the batched variant. Spelled once, because EnableKeyword takes a
-    // string and a typo in it is not an error — it enables a keyword no variant declares, which
-    // leaves the per-emitter program running against nothing bound and draws black fans.
-    public const string BatchKeyword = "VECTORLIGHT_BATCHED";
 
     // The shader itself, resolved through the def on every read. ShaderTypeDef memoises into its own
     // shaderInt, so after the first call this is a field read behind a property — cheap enough that a
@@ -110,6 +114,13 @@ public static class VectorLightShader
 
     private static Shader LiftLoaded => ShaderLoader.Resolve(
         CelestialShaderDefOf.CL_VectorLightMaxLift, LiftShaderPath, "vector lighting's surface lift");
+
+    private static Shader BatchedLoaded => ShaderLoader.Resolve(
+        CelestialShaderDefOf.CL_VectorLightMaxBatched, BatchedShaderPath, "vector lighting's batched draw");
+
+    private static Shader LiftBatchedLoaded => ShaderLoader.Resolve(
+        CelestialShaderDefOf.CL_VectorLightMaxLiftBatched, LiftBatchedShaderPath,
+        "vector lighting's batched surface lift");
 
     // The verdict on the lift shader, cached like Available's.
     private static bool? liftAvailable;
@@ -163,22 +174,17 @@ public static class VectorLightShader
     // The verdict on the batched variant, cached beside Available and for the same reason.
     private static bool? batchAvailable;
 
-    // Whether one draw call can carry several emitters on this machine. THREE SEPARATE THINGS CAN
-    // SAY NO and each of them is a real configuration rather than a defensive nicety:
+    // Whether one draw call can carry several emitters on this machine. TWO THINGS CAN SAY NO, and
+    // each is a real configuration rather than a defensive nicety:
     //
-    //   - the loaded shader may not declare the keyword at all, which is what a STALE ASSET BUNDLE
-    //     looks like. The harness's --mod-overlay swaps assemblies and leaves AssetBundles/ coming
-    //     from the main checkout, so a branch that changed the shader and was live-tested through an
-    //     overlay is running new C# against the old compiled program. Without this check that
-    //     arrangement does not fail — EnableKeyword on a keyword no variant declares is a no-op, the
-    //     per-emitter program runs with no _Color bound, and the frame is black fans with green
-    //     probes. See the overlay-swaps-assemblies-only trap;
-    //   - the machine may not support texture arrays, which is where every emitter's square lives;
-    //   - it may not support copying a Texture2D into a slice of one, which is how they get there.
-    //     Graphics.CopyTexture between different texture types needs DifferentTypes specifically,
-    //     and Basic alone is not enough.
+    //   - the batched shaders may be missing, which is what a STALE ASSET BUNDLE looks like. The
+    //     harness's --mod-overlay swaps assemblies and leaves AssetBundles/ coming from the main
+    //     checkout, so a branch live-tested through an overlay alone runs new C# against the old
+    //     bundle. Without this check the batch material would draw a late-bound engine shader with
+    //     no _BatchColor bound: black fans, green probes. Pass the bundle with --install too;
+    //   - the machine may not support texture arrays, which is where every emitter's square lives.
     //
-    // All three land as false and the pass draws per emitter, which is the shipped path — a batching
+    // Both land as false and the pass draws per emitter, which is the shipped path — a batching
     // optimisation that cannot run must cost a frame nothing but the question.
     public static bool BatchAvailable => batchAvailable ??= ValidateBatch();
 
@@ -246,11 +252,17 @@ public static class VectorLightShader
     // keyword between two calls on one material would give every draw in the frame whichever setting
     // was written last. It is the same trap that puts the colour on a property block, one level up:
     // anything that varies per draw has to be per draw, and a keyword cannot be.
+    //
+    // ON 1.7 THE VARIANT IS A SHADER, not a keyword — see BatchedShaderPath. NewMaterial supplies the
+    // queue and the gradient; only the shader is swapped, so the batched and per-emitter materials
+    // cannot drift apart in anything but the program. Blend is baked per shader on 1.7, so the
+    // surface lift picks its own batched shader exactly as NewMaterial picks VectorLightMaxLift.
     public static Material NewBatchMaterial(Texture2D gradient, bool surfaceLift, int queueOffset)
     {
         Material material = NewMaterial(gradient, surfaceLift, queueOffset);
 
-        material.EnableKeyword(BatchKeyword);
+        material.shader = surfaceLift && LiftShaderAvailable ? LiftBatchedLoaded : BatchedLoaded;
+        material.renderQueue = ShaderDatabase.MoteGlow.renderQueue + queueOffset;
 
         return material;
     }
@@ -294,18 +306,10 @@ public static class VectorLightShader
         props.SetFloat(SkyAmbientId, ambient);
     }
 
-    // RimWorld 1.7 CANNOT DRAW THE BATCHED PROGRAM AT ALL. Waylith builds each bundle shader from the
-    // one variant with the fewest keywords and never switches (UnityStubs TryPickProgram), so enabling
-    // VECTORLIGHT_BATCHED on the material changes nothing and the unbatched program would receive
-    // batched data — every emitter drawn with the wrong field. ValidateBatch's other checks also say no
-    // on 1.7 today, but by accident: 1.7's LocalKeyword.isValid answers true for any name, and its
-    // copyTextureSupport merely happens to lack DifferentTypes. Refusing by name keeps the reason true
-    // if either stub changes. Batching on 1.7 needs the batched program as its own shader, the same
-    // one-shader-per-state pattern as issue #257.
-    //
-    // A named property rather than a bare early return, so the refusal says which property of the
-    // engine it rests on. Constant since 1.6 was frozen on release/1.6: every build of main is 1.7.
-    private static bool DrawsOnlyKeywordlessVariants => true;
+    // Whether a resolved shader is the one asked for. A missing path resolves to a late-bound engine
+    // shader on 1.7 rather than null, so the declared name is the only reliable test.
+    private static bool LoadedAs(Shader shader, string name) =>
+        shader != null && shader != ShaderDatabase.DefaultShader && shader.name == name && shader.isSupported;
 
     // RimWorld 1.7 bakes a bundle shader's blend from its property defaults when it builds the
     // pipeline (UnityStubs UnityShaderAsset.ReadState) and never reads _SrcBlend/_DstBlend off a
@@ -323,24 +327,16 @@ public static class VectorLightShader
         if (!Available)
             return false;
 
-        if (DrawsOnlyKeywordlessVariants)
+        // The batched programs are shaders of their own on 1.7, so the stale-bundle check is
+        // whether those shaders loaded under their declared names. A bundle predating them resolves
+        // to a late-bound engine shader rather than null (see ShaderLoader), hence the name test.
+        if (!LoadedAs(BatchedLoaded, BatchedShaderName)
+            || (LiftShaderAvailable && !LoadedAs(LiftBatchedLoaded, LiftBatchedShaderName)))
         {
             Log.Message(
-                "[CelestialLighting] RimWorld 1.7 draws only a shader's keywordless variant, so vector "
-                + "lighting draws one emitter at a time.");
-            return false;
-        }
-
-        // The stale-bundle check. LocalKeyword answers what the LOADED program declares rather than
-        // what this assembly believes it declares, which is exactly the gap an assembly-only overlay
-        // opens. Asked through the keyword space rather than by enabling it and reading it back,
-        // because EnableKeyword succeeds for a keyword that does not exist.
-        if (!new LocalKeyword(Loaded, BatchKeyword).isValid)
-        {
-            Log.Message(
-                "[CelestialLighting] Shader '" + ShaderPath + "' does not declare the '" + BatchKeyword
-                + "' variant, so the asset bundle predates vector lighting's batched draw. Drawing "
-                + "one emitter at a time. Rebuild the bundle with Tools/ShaderBundle/build.sh.");
+                "[CelestialLighting] The asset bundle has no batched vector-light shaders, so it "
+                + "predates vector lighting's batched draw on RimWorld 1.7. Drawing one emitter at a "
+                + "time. Rebuild the bundle with Tools/ShaderBundle/build.sh.");
             return false;
         }
 
@@ -352,17 +348,9 @@ public static class VectorLightShader
             return false;
         }
 
-        // DifferentTypes specifically, not Basic. Basic covers a Texture2D to a Texture2D; putting
-        // one into a SLICE of an array is a copy between texture types, and a machine with only
-        // Basic silently copies nothing — every batched emitter would then sample an empty slice and
-        // subtract no vanilla, which is a doubled lighting model rather than a missing one.
-        if ((SystemInfo.copyTextureSupport & CopyTextureSupport.DifferentTypes) == 0)
-        {
-            Log.Message(
-                "[CelestialLighting] This system cannot copy a texture into a texture-array slice, "
-                + "so vector lighting draws one emitter at a time.");
-            return false;
-        }
+        // NO COPY-SUPPORT TEST. Slices are filled by uploading each field's CPU level straight
+        // into its array layer (WaylithFieldUpload.TryUploadToLayer), not by Graphics.CopyTexture,
+        // which on 1.7 reports no DifferentTypes support and copies nothing into a slice.
 
         return true;
     }
