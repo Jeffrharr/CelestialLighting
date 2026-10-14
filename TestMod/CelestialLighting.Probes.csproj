@@ -55,6 +55,7 @@
     <Compile Include="../Source/Probes/AxialTiltActiveProbe.cs" Link="AxialTiltActiveProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltLunarProbe.cs" Link="AxialTiltLunarProbe.cs" />
     <Compile Include="../Source/Probes/PlanetsmithActiveProbe.cs" Link="PlanetsmithActiveProbe.cs" />
+    <Compile Include="../Source/Probes/Vector256AcceleratedProbe.cs" Link="Vector256AcceleratedProbe.cs" />
     <Compile Include="../Source/Probes/PlanetsmithTiltProbe.cs" Link="PlanetsmithTiltProbe.cs" />
     <Compile Include="../Source/Probes/RealisticPlanetsActiveProbe.cs" Link="RealisticPlanetsActiveProbe.cs" />
     <!-- The three files under Probes/ that WRITE rather than read. Two put a steep tilt on the loaded

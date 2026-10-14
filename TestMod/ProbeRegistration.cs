@@ -21,6 +21,7 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AxialTiltActiveProbe());
         ProbeRegistry.Register(new AxialTiltLunarProbe());
         ProbeRegistry.Register(new PlanetsmithActiveProbe());
+        ProbeRegistry.Register(new Vector256AcceleratedProbe());
         // Reports the obliquity actually in force rather than Planetsmith's stored field, so it
         // follows the whole precedence chain: with RAT installed too this reads RAT's tilt while
         // planetsmith_active still reads 1, which is the intended outcome and the only way a scenario
