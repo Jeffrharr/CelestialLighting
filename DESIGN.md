@@ -12870,6 +12870,18 @@ Pair ratios on the subject 0.365, 0.367, 0.327, 0.354; ranges 11.36–12.33 agai
 
 **Behind `vector_light_mask_run_indices`, on**, for the reason the box's flag exists. Inert unless the box and the runs are.
 
+**Vectorising the accumulation lost, and was not shipped.** On RimWorld 1.7 (.NET 10) the run's
+per-cell sum, `own * (255 - coverage) / 255` per channel, was written two cells per `Vector256`,
+branch-free, with the division as `(v * 32897) >> 23`. That form is exact over all 16-bit `v`, so
+the frame was bit-identical by test. Offline the kernel alone ran 1.5-1.8x faster per cell. Live,
+on this colony, four off/on pairs in one boot: the stage went **2.0-2.7 ms scalar against 3.1-5.4
+ms vectorised** (11.2 on its first, JIT-cold arm), over the same 117,461 cells and 21,878 edits.
+The scalar walk is already about 18-22 ns a cell, and that is the one native read of vanilla's
+per-light colour: an `UnsafeList<Color32>` this project cannot take as a span without unsafe code.
+The vector path still pays that read to copy each run into a scratch buffer, then adds a span
+slice and a call per run, and runs here are short. The arithmetic was never the cost. Revisit only
+if the colours become readable as a span.
+
 
 #### The saturation pass, clocked three ways, then folded with the advancing walk (`VectorLightMask.AccumulateFoldAdvancing`)
 
