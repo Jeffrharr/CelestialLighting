@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 namespace CelestialLighting;
 
@@ -285,7 +287,16 @@ public static class VectorLightMath
     // Three rays per corner plus a base ring, all clamped to `radius`, sorted by angle. See
     // CornerRayEpsilon for why three and DefaultBaseRayCount for why the ring exists at all.
     public static LightPolygon Build(
-        float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount)
+        float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount) =>
+        Build(lightX, lightZ, radius, segments, baseRayCount, Vector256.IsHardwareAccelerated);
+
+    // `vectorised` selects how the rays are cast — eight at a time (AngularIndex.CastRays) or one at
+    // a time — and NOTHING ELSE: both produce bit-identical polygons, which is what the cull fixture
+    // asserts for each arm against the brute-force oracle. It is a parameter rather than a static
+    // switch so the offline tests can run both arms on a machine that has AVX2, without a mutable
+    // static in the pure core that a parallel NUnit fixture could race on.
+    internal static LightPolygon Build(
+        float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount, bool vectorised)
     {
         // Normalised to a non-null array once, here, so nothing downstream needs its own null check
         // and no call site can pass one on. The public CastRay keeps its own guard because it is
@@ -313,10 +324,16 @@ public static class VectorLightMath
         float[] outDistances = new float[angles.Count];
         int count = 0;
 
+        // Every ray is cast first, into outDistances, and the redundancy pass then compacts that same
+        // array in place. Casting first is what lets rays go eight at a time; compacting in place
+        // keeps it to the two arrays Build always allocated. In-place is safe because the write index
+        // `count` never passes the read index `i`, and slot i is read before anything is written.
+        index.CastRays(lightX, lightZ, CollectionsMarshal.AsSpan(angles), radius, walls, outDistances, vectorised);
+
         for (int i = 0; i < angles.Count; i++)
         {
             float angle = angles[i];
-            float distance = index.CastRay(lightX, lightZ, angle, radius, walls);
+            float distance = outDistances[i];
 
             if (!IsRedundant(outAngles, outDistances, count, angle, distance))
             {
@@ -556,6 +573,138 @@ public static class VectorLightMath
             // slice: +pi and -pi are one direction.
             int bucket = (int)((angle + (float)Math.PI) / (float)(2.0 * Math.PI) * Buckets);
             return bucket & BucketMask;
+        }
+
+        // EIGHT RAYS AT ONCE (Vector256, AVX2 on the Steam Deck's Zen 2), and why it is rays rather
+        // than segments that go across the lanes.
+        //
+        // The obvious vectorisation runs one ray against eight segments. It does not fit this index:
+        // a bucket holds a handful to a few dozen segments, reached through `items[k]` — an indirect
+        // gather per lane, and a tail that is most of the work when the bucket is short. The rays,
+        // though, arrive SORTED BY ANGLE, so consecutive rays fall in the same bucket and face the
+        // identical segment list. Eight of them can share every segment load: each segment is read
+        // once, its four per-segment terms are computed once as scalars, and only the ray-dependent
+        // half of the solve runs per lane.
+        //
+        // BIT-IDENTICAL TO THE SCALAR CAST, not merely close, and that is by construction rather than
+        // by luck. Each lane performs the same IEEE operations as RaySegmentDistance, on the same
+        // operands, in the same order, with the same comparisons — the only operand that moved is
+        // `sx * wz - wx * sz`, which never depended on the ray and is now computed once instead of
+        // eight times. Neither the JIT nor Vector256 fuses a multiply into an add unless asked to,
+        // and each lane visits the segments in the bucket's own order, so a lane's running minimum
+        // takes exactly the values the scalar loop would. VectorLightBuildCullTests holds both arms
+        // to the brute-force oracle bit for bit.
+        //
+        // A group that ends early (a bucket boundary, or the last rays) is padded by repeating its
+        // last ray, which costs a lane of wasted arithmetic and keeps one code path; the padding
+        // lanes are never stored.
+        public void CastRays(
+            float lightX, float lightZ, ReadOnlySpan<float> rays, float radius, Segment[] segments,
+            Span<float> distances, bool vectorised)
+        {
+            int first = 0;
+
+            while (first < rays.Length)
+            {
+                int count = GroupLength(rays, first, vectorised);
+                CastGroup(lightX, lightZ, rays, first, count, radius, segments, distances, vectorised);
+                first += count;
+            }
+        }
+
+        private const int Lanes = 8;
+
+        // How many rays from `first` on can share one segment list: up to a full vector of them, all
+        // pointing into the same bucket. Without an index every ray shares the same list (all of it),
+        // so only the lane count limits the group. The scalar arm always takes one.
+        private int GroupLength(ReadOnlySpan<float> rays, int first, bool vectorised)
+        {
+            int limit = vectorised ? Math.Min(Lanes, rays.Length - first) : 1;
+            int bucket = starts == null ? 0 : BucketOf(rays[first]);
+            int count = 1;
+
+            while (count < limit && SharesBucket(rays[first + count], bucket))
+                count++;
+
+            return count;
+        }
+
+        private bool SharesBucket(float angle, int bucket) => starts == null || BucketOf(angle) == bucket;
+
+        private void CastGroup(
+            float lightX, float lightZ, ReadOnlySpan<float> rays, int first, int count, float radius,
+            Segment[] segments, Span<float> distances, bool vectorised)
+        {
+            if (!vectorised)
+            {
+                distances[first] = CastRay(lightX, lightZ, rays[first], radius, segments);
+                return;
+            }
+
+            // The segment range this group faces: one bucket's slice of `items`, or every segment
+            // when there is no index (items == null reads index k as segment k).
+            int bucket = starts == null ? 0 : BucketOf(rays[first]);
+            int from = starts == null ? 0 : starts[bucket];
+            int to = starts == null ? segments.Length : starts[bucket + 1];
+
+            Span<float> dirXs = stackalloc float[Lanes];
+            Span<float> dirZs = stackalloc float[Lanes];
+
+            for (int lane = 0; lane < Lanes; lane++)
+            {
+                // Same (float)Math.Cos / Sin of the same angle as the scalar cast, so each lane's
+                // direction is bitwise the one CastRay would have used.
+                float angle = rays[first + Math.Min(lane, count - 1)];
+                dirXs[lane] = (float)Math.Cos(angle);
+                dirZs[lane] = (float)Math.Sin(angle);
+            }
+
+            Vector256<float> nearest = NearestHits(
+                lightX, lightZ, Vector256.Create<float>(dirXs), Vector256.Create<float>(dirZs),
+                radius, segments, from, to);
+
+            Span<float> lanes = stackalloc float[Lanes];
+            nearest.CopyTo(lanes);
+            lanes.Slice(0, count).CopyTo(distances.Slice(first, count));
+        }
+
+        // RaySegmentDistance and the scalar loop's `hit >= 0 && hit < nearest`, eight rays wide. The
+        // miss cases the scalar solve returns -1 for (a near-parallel ray, t behind the light, u off
+        // the segment) are folded into one mask, so a lane simply keeps its current nearest for them.
+        private Vector256<float> NearestHits(
+            float lightX, float lightZ, Vector256<float> dirX, Vector256<float> dirZ, float radius,
+            Segment[] segments, int from, int to)
+        {
+            Vector256<float> nearest = Vector256.Create(radius);
+            Vector256<float> zero = Vector256<float>.Zero;
+            Vector256<float> one = Vector256<float>.One;
+            Vector256<float> parallel = Vector256.Create(1e-12f);
+
+            for (int k = from; k < to; k++)
+            {
+                Segment segment = segments[items == null ? k : items[k]];
+
+                float sx = segment.X2 - segment.X1;
+                float sz = segment.Z2 - segment.Z1;
+                float wx = segment.X1 - lightX;
+                float wz = segment.Z1 - lightZ;
+                float tNumerator = sx * wz - wx * sz;
+
+                Vector256<float> det = Vector256.Create(sx) * dirZ - dirX * Vector256.Create(sz);
+                Vector256<float> t = Vector256.Create(tNumerator) / det;
+                Vector256<float> u = (dirX * Vector256.Create(wz) - Vector256.Create(wx) * dirZ) / det;
+
+                Vector256<float> hits =
+                    Vector256.GreaterThanOrEqual(Vector256.Abs(det), parallel)
+                    & Vector256.GreaterThanOrEqual(t, zero)
+                    & Vector256.GreaterThanOrEqual(u, zero)
+                    & Vector256.LessThanOrEqual(u, one)
+                    & Vector256.LessThan(t, nearest);
+
+                nearest = Vector256.ConditionalSelect(hits, t, nearest);
+            }
+
+            return nearest;
         }
 
         // Distance to the nearest segment along one ray, testing only the bucket the ray points into.

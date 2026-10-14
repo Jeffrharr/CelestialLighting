@@ -147,21 +147,39 @@ public class VectorLightBuildCullTests
 
     // ---- helpers -------------------------------------------------------------------------------
 
+    // Both ray-casting arms of Build — eight rays per vector, and one at a time — each against the
+    // oracle. The vectorised arm is the one that ships on any AVX2 machine; the scalar arm is what a
+    // machine without it runs, and it would otherwise go untested on every box that has AVX2.
+    // (Vector256 still computes correctly where it is not hardware-accelerated, only slowly, so the
+    // vectorised arm runs here whatever the test machine is.)
     private static void AssertIdentical(
         VectorLightMath.Segment[] segments, float lightX, float lightZ, float radius, string what = "")
     {
-        VectorLightMath.LightPolygon actual =
-            VectorLightMath.Build(lightX, lightZ, radius, segments, Rays);
         VectorLightMath.LightPolygon expected =
             VectorLightBuildOracle.Build(lightX, lightZ, radius, segments, Rays);
+
+        AssertArmIdentical(expected, segments, lightX, lightZ, radius, vectorised: true, $"{what} (8-wide)");
+        AssertArmIdentical(expected, segments, lightX, lightZ, radius, vectorised: false, $"{what} (scalar)");
+    }
+
+    private static void AssertArmIdentical(
+        VectorLightMath.LightPolygon expected, VectorLightMath.Segment[] segments, float lightX,
+        float lightZ, float radius, bool vectorised, string what)
+    {
+        VectorLightMath.LightPolygon actual =
+            VectorLightMath.Build(lightX, lightZ, radius, segments, Rays, vectorised);
 
         Assert.That(actual.Count, Is.EqualTo(expected.Count), $"ray count {what}");
 
         for (int i = 0; i < expected.Count; i++)
         {
-            // Exact equality on purpose — see the fixture header.
-            Assert.That(actual.Angles[i], Is.EqualTo(expected.Angles[i]), $"angle {i} {what}");
-            Assert.That(actual.Distances[i], Is.EqualTo(expected.Distances[i]), $"distance {i} {what}");
+            // Compared as BITS, not as floats — see the fixture header. Float equality would let a
+            // -0 stand in for a 0, and an 8-wide minimum is exactly the kind of change that could
+            // produce one where the scalar loop did not.
+            Assert.That(BitConverter.SingleToInt32Bits(actual.Angles[i]),
+                Is.EqualTo(BitConverter.SingleToInt32Bits(expected.Angles[i])), $"angle {i} {what}");
+            Assert.That(BitConverter.SingleToInt32Bits(actual.Distances[i]),
+                Is.EqualTo(BitConverter.SingleToInt32Bits(expected.Distances[i])), $"distance {i} {what}");
         }
     }
 }
