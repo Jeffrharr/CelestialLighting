@@ -288,14 +288,19 @@ public static class VectorLightMath
     // CornerRayEpsilon for why three and DefaultBaseRayCount for why the ring exists at all.
     public static LightPolygon Build(
         float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount) =>
-        Build(lightX, lightZ, radius, segments, baseRayCount, Vector256.IsHardwareAccelerated);
+        BuildCasting(lightX, lightZ, radius, segments, baseRayCount, Vector256.IsHardwareAccelerated);
 
     // `vectorised` selects how the rays are cast — eight at a time (AngularIndex.CastRays) or one at
     // a time — and NOTHING ELSE: both produce bit-identical polygons, which is what the cull fixture
     // asserts for each arm against the brute-force oracle. It is a parameter rather than a static
     // switch so the offline tests can run both arms on a machine that has AVX2, without a mutable
     // static in the pure core that a parallel NUnit fixture could race on.
-    internal static LightPolygon Build(
+    //
+    // A DIFFERENT NAME, NOT A Build OVERLOAD, on purpose: the live harness arms its timers by type and
+    // method NAME (TestMod's ArmBank("circ_vlpolygon", ..., "Build")), and a second Build made that
+    // lookup ambiguous — the arm silently failed to attach and every circ_vlpolygon probe vanished
+    // from the bake-storm report without a FAIL. The public Build stays the single armable entry.
+    internal static LightPolygon BuildCasting(
         float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount, bool vectorised)
     {
         // Normalised to a non-null array once, here, so nothing downstream needs its own null check
