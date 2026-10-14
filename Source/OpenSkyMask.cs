@@ -77,6 +77,8 @@ public static class OpenSkyMask
 
     private static void Rebuild(Map map, MaskEntry entry)
     {
+        ReleaseOwnedMesh(entry);
+
         int width = map.Size.x;
         int height = map.Size.z;
 
@@ -98,6 +100,23 @@ public static class OpenSkyMask
         }
 
         entry.Mesh = BuildMesh(runs, width, height);
+    }
+
+    // Destroys the mesh this entry built last time, before a rebuild replaces it.
+    //
+    // EVERY ROOF CHANGE USED TO LEAK ONE. Rebuild assigned a fresh `new Mesh` over the old one and
+    // nothing ever destroyed it, so a colony that roofed a room left the previous whole-map mask
+    // behind each time. On 1.6 that was a managed object Unity would sweep on its next unused-asset
+    // pass; on 1.7 a mesh owns Vulkan buffers until it is disposed, and nothing sweeps them.
+    //
+    // NEVER vanilla's plane: MeshPool.wholeMapPlane is shared with every weather overlay in the game,
+    // and destroying it blanks them all for the rest of the session.
+    private static void ReleaseOwnedMesh(MaskEntry entry)
+    {
+        if (entry.Mesh != null && entry.Mesh != MeshPool.wholeMapPlane)
+            Object.Destroy(entry.Mesh);
+
+        entry.Mesh = null;
     }
 
     private static bool[] ReadRoofed(Map map, int width, int height)
