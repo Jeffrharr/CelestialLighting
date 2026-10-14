@@ -267,16 +267,32 @@ public static class VectorLightShader
         return material;
     }
 
-    // Everything one batched draw carries, on its own block. The arrays are passed whole rather than
-    // by count because SetVectorArray fixes the uniform array's length on first use — Unity's own
-    // documented trap — so the caller keeps one array at BatchCapacity and writes a prefix of it.
-    // Unused tails are never indexed: the mesh only carries slots the caller filled.
+    // Everything one batched draw carries, on that batch's OWN MATERIAL. The arrays are passed whole
+    // rather than by count because SetVectorArray fixes the uniform array's length on first use —
+    // Unity's own documented trap — so the caller keeps one array at BatchCapacity and writes a
+    // prefix of it. Unused tails are never indexed: the mesh only carries slots the caller filled.
+    //
+    // ON THE MATERIAL, NOT A PROPERTY BLOCK, because a property block's arrays never reach the
+    // shader on 1.7. Two 64-entry float4 arrays make the batched program's constant buffer 2,176
+    // bytes, and RimWorld 1.7 moves any constant buffer that pushes a pass past 512 bytes into a
+    // storage buffer (UnityStubs UnityShaderBindingPlan.Build, MovedBlock). Waylith builds that
+    // buffer from the MATERIAL's arrays and the global ones only (Material.ComposeStorageArrays ->
+    // MaterialBindingResolver.ResolveUniformBlock); a property block's arrays are bound under their
+    // own names, which no slot of a moved block asks for. Set there, both arrays read as zeros:
+    // every batched emitter drew with no colour and no strength, so the pass added nothing, and the
+    // frame lost exactly our excess over vanilla. That measured as "about 10% dimmer" (p99 ΔE 1.63),
+    // and it was the whole pass missing rather than a dimmer one.
+    //
+    // A material per batch rather than one per (radius, composition) is what makes this safe under
+    // deferred draws: the material is read when the frame renders, so two batches sharing one would
+    // both draw the arrays written last. Writing unchanged arrays every frame costs no upload —
+    // Waylith byte-compares the composed block before taking a new generation.
     public static void SetBatch(
-        MaterialPropertyBlock props, Texture array, Vector4[] colors, Vector4[] parameters)
+        Material material, Texture array, Vector4[] colors, Vector4[] parameters)
     {
-        props.SetTexture(VanillaArrayId, array);
-        props.SetVectorArray(BatchColorId, colors);
-        props.SetVectorArray(BatchParamsId, parameters);
+        material.SetTexture(VanillaArrayId, array);
+        material.SetVectorArray(BatchColorId, colors);
+        material.SetVectorArray(BatchParamsId, parameters);
     }
 
     public static void SetVanillaWeight(MaterialPropertyBlock props, float weight)

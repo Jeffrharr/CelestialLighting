@@ -67,7 +67,10 @@ internal static class VectorLightDrawBatch
         public float BuiltAltitude = float.NaN;
 
         public Mesh Mesh;
-        public MaterialPropertyBlock Props;
+
+        // This batch's own material, carrying its arrays. Never shared with another batch — see
+        // VectorLightShader.SetBatch for why the arrays cannot ride on a property block on 1.7.
+        public Material Material;
 
         // Vanilla's square for every member, one slice each, plus what is actually in each slice
         // right now. The pair is what lets a frame copy only the slices whose emitter's texture
@@ -192,13 +195,13 @@ internal static class VectorLightDrawBatch
             Submit(Live[i]);
     }
 
-    // Drops every cached mesh and slice array, for exactly the reasons VectorLightField.ClearAll
+    // Drops every cached mesh, slice array and material, for exactly the reasons VectorLightField.ClearAll
     // drops every emitter's: an off run must hold no GPU memory of the feature, and an on run must
     // not be able to draw something built before the toggle moved. Called from the same place, so
     // the two caches cannot end up disagreeing about which half of a rebuild they are on.
     //
-    // KEPT AS AN OBJECT-LEVEL DROP RATHER THAN A DICTIONARY CLEAR ALONE, because a Mesh and a
-    // Texture2DArray are Unity objects: dropping the last managed reference to one leaks it until
+    // KEPT AS AN OBJECT-LEVEL DROP RATHER THAN A DICTIONARY CLEAR ALONE, because a Mesh, a
+    // Texture2DArray and a Material are Unity objects: dropping the last managed reference to one leaks it until
     // the scene unloads, and the batches are keyed on a bucket a colony can cycle through as lamps
     // are built and deconstructed.
     public static void Discard()
@@ -210,6 +213,9 @@ internal static class VectorLightDrawBatch
 
             if (batch.Slices != null)
                 Object.Destroy(batch.Slices);
+
+            if (batch.Material != null)
+                Object.Destroy(batch.Material);
         }
 
         Batches.Clear();
@@ -280,14 +286,14 @@ internal static class VectorLightDrawBatch
 
         EnsureSlices(batch);
 
-        batch.Props ??= new MaterialPropertyBlock();
+        // The key a batch lives under fixes its radius bucket and composition, so the material made
+        // for its first member stays right for every later frame.
+        batch.Material ??= VectorLightOverlay.NewBatchMaterialFor(batch.Radius, batch.Composition);
 
-        VectorLightShader.SetBatch(batch.Props, batch.Slices, batch.Colors, batch.Parameters);
+        VectorLightShader.SetBatch(batch.Material, batch.Slices, batch.Colors, batch.Parameters);
 
         Graphics.DrawMesh(
-            batch.Mesh, Vector3.zero, Quaternion.identity,
-            VectorLightOverlay.BatchMaterialFor(batch.Radius, batch.Composition),
-            0, null, 0, batch.Props);
+            batch.Mesh, Vector3.zero, Quaternion.identity, batch.Material, 0);
 
         VectorLightField.DrawCalls++;
     }

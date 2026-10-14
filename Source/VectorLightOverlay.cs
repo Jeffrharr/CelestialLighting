@@ -61,11 +61,6 @@ public static class VectorLightOverlay
 
     // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
-    // The batched variant of each (radius bucket, composition) pair, keyed on both at once: the
-    // bucket shifted up two bits with the composition in the low two. One dictionary rather than
-    // four, because unlike the per-emitter caches these are never looked up by composition alone.
-    private static readonly Dictionary<int, Material> BatchMaterials = new Dictionary<int, Material>();
-
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
 
     private static readonly List<Vector3> Verts = new List<Vector3>();
@@ -720,29 +715,21 @@ public static class VectorLightOverlay
         return Mathf.RoundToInt(radius * 4f);
     }
 
-    // The same material, with the batched variant selected. Its own cache rather than a fifth
-    // Composition, because the keyword is orthogonal to the four compositions: every one of them
-    // that goes through our own program can be batched, and adding a case per pair would be eight
-    // enum members describing two independent choices.
+    // The same material, with the batched variant selected — a NEW one per call, owned by the batch
+    // that asked. Not cached here, because the batch's arrays live on its material: see
+    // VectorLightShader.SetBatch for why 1.7 cannot carry them on a property block, and why two
+    // batches sharing one material would draw whichever arrays were written last.
     //
     // THE GRADIENT IS SHARED WITH THE PER-EMITTER MATERIAL, which is what makes the two arms
     // comparable at all. GradientFor memoises per (radius, seed), so the batched material and the
     // unbatched one of the same composition hold the identical texture object — a second copy built
     // by a second expression is exactly how two arms of one A/B come to differ by a quantisation
     // step that looks like the feature.
-    internal static Material BatchMaterialFor(float radius, Composition composition)
+    internal static Material NewBatchMaterialFor(float radius, Composition composition)
     {
-        int key = (RadiusKey(radius) << 2) | (int)composition;
-
-        if (!BatchMaterials.TryGetValue(key, out Material material))
-        {
-            material = VectorLightShader.NewBatchMaterial(
-                GradientFor(RadiusKey(radius), matchSeed: true),
-                MultiplyBlend(composition), QueueOffset(composition));
-            BatchMaterials[key] = material;
-        }
-
-        return material;
+        return VectorLightShader.NewBatchMaterial(
+            GradientFor(RadiusKey(radius), matchSeed: true),
+            MultiplyBlend(composition), QueueOffset(composition));
     }
 
     private static Material MaterialFor(float radius, Composition composition)
