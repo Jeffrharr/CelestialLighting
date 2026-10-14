@@ -17146,8 +17146,12 @@ storage buffer (`UnityShaderBindingPlan.Build`, `MovedBlock`). Waylith fills tha
 material's arrays and the global ones only, so property-block arrays read as zeros and the batched
 pass drew nothing: the "about 10% dimmer" frame (p99 ΔE 1.63) was our excess over vanilla going
 missing. With both fixes, `vector_light_draw_batch_ab` measures 0.00% of pixels changed against
-the per-emitter arm at 19 emitters per call, the same as its same-build control. Turning it on
-waits on the `vector_light_suite` gate.
+the per-emitter arm at 19 emitters per call, the same as its same-build control, and
+`vector_light_suite` is identical on all 56 captures. It stays off on performance: on the 500-lamp,
+50-pawn plate it halves a paused frame's overlay draw (0.21 to 0.11 ms) but takes a moving one from
+0.28 to 0.71 ms, worst frame 9.0 to 16.5 ms. Any member that moves rebuilds its whole combined mesh,
+and a living colony moves some member of nearly every batch every frame. Rebuilding only the moved
+members' vertex ranges is what would make it worth turning on.
 
 **Measured** (bake storm, 5,030 bakes, alternating processes): the upload stage 301-316 ms with
 `mesh_one_write` on against 528 ms off, the mesh clock 4-15 ms against 194 ms. Each commit carries
