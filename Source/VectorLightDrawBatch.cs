@@ -335,11 +335,19 @@ internal static class VectorLightDrawBatch
             batch.Mesh.indexFormat = IndexFormat.UInt32;
         }
 
-        batch.Mesh.Clear();
-        batch.Mesh.SetVertices(Verts);
-        batch.Mesh.SetUVs(0, Uvs);
-        batch.Mesh.SetUVs(1, VanillaUvs);
-        batch.Mesh.SetTriangles(Tris, 0);
+        // One storage swap on 1.7 instead of Clear + four full re-encodes — see WaylithMeshUpload.
+        if (CelestialLightingFeatures.MeshOneWrite)
+        {
+            WaylithMeshUpload.WriteBatch(batch.Mesh, Verts, Uvs, VanillaUvs, Tris);
+        }
+        else
+        {
+            batch.Mesh.Clear();
+            batch.Mesh.SetVertices(Verts);
+            batch.Mesh.SetUVs(0, Uvs);
+            batch.Mesh.SetUVs(1, VanillaUvs);
+            batch.Mesh.SetTriangles(Tris, 0);
+        }
 
         RecordMembership(batch);
         VectorLightField.BatchMeshBuilds++;

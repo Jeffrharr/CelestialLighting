@@ -158,4 +158,26 @@ public class VectorLightMeshMathTests
         Assert.That(new[] { box.MinX, box.MinY, box.MinZ, box.MaxX, box.MaxY, box.MaxZ },
             Is.EqualTo(new[] { -3f, 2f, -1f, 1f, 9f, 4f }));
     }
+
+    [Test]
+    public void InterleavePositionUvs_MatchesThePerEmitterLayoutWithFieldUvs()
+    {
+        // The batch and the per-emitter mesh must hand the shader the same bytes for one emitter.
+        float[] fieldUvs = { 0.1f, 0.2f, 0f, 0f, 0.3f, 0.4f, 1f, 0f };
+        float[] xyz = { 1f, 7f, 4f, -2f, 7f, 5f };
+        float[] uv = { 0f, 0f, 0.5f, 0.25f };
+
+        float[] batched = VectorLightMeshMath.InterleavePositionUvs(xyz, uv, fieldUvs);
+        float[] single = VectorLightMeshMath.Interleave(X, Z, U, V, 2, altitude: 7f, fieldUvs);
+
+        Assert.That(batched, Is.EqualTo(single));
+    }
+
+    [TestCase(6, 2, 8)]
+    [TestCase(6, 4, 4)]
+    public void InterleavePositionUvs_RefusesMismatchedChannels(int xyz, int uv, int fieldUvs)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            VectorLightMeshMath.InterleavePositionUvs(new float[xyz], new float[uv], new float[fieldUvs]));
+    }
 }

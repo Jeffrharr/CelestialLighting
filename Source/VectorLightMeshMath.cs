@@ -121,6 +121,33 @@ public static class VectorLightMeshMath
         return new Box(minX, altitude, minZ, maxX, altitude, maxZ);
     }
 
+    // The batched draw's combined mesh: the same position + uv0 + uv1 layout as the per-emitter one
+    // with field UVs, packed from channel spans because the batch assembles its lists from many
+    // emitters (AppendGeometry / AppendFieldUvs) rather than from one bake's arrays. xyz is three
+    // floats per vertex, uv two, fieldUvs four; every length is checked against xyz's vertex count.
+    public static float[] InterleavePositionUvs(
+        ReadOnlySpan<float> xyz, ReadOnlySpan<float> uv, ReadOnlySpan<float> fieldUvs)
+    {
+        int count = xyz.Length / PositionFloats;
+
+        if (xyz.Length != count * PositionFloats || uv.Length != count * 2 || fieldUvs.Length != count * UvFloats)
+            throw new ArgumentException(
+                $"channel lengths {xyz.Length}/{uv.Length}/{fieldUvs.Length} do not describe one vertex count");
+
+        float[] stream = new float[count * StrideWithFieldUvsFloats];
+        Span<float> floats = stream;
+
+        for (int i = 0; i < count; i++)
+        {
+            Span<float> vertex = floats.Slice(i * StrideWithFieldUvsFloats, StrideWithFieldUvsFloats);
+            xyz.Slice(i * PositionFloats, PositionFloats).CopyTo(vertex);
+            uv.Slice(i * 2, 2).CopyTo(vertex.Slice(PositionFloats));
+            fieldUvs.Slice(i * UvFloats, UvFloats).CopyTo(vertex.Slice(StrideFloats));
+        }
+
+        return stream;
+    }
+
     // ---- Position + colour + uv0: the pawn-shadow batch's layout ----------------------------------
     //
     // What SetVertices + SetColors(Color32) + SetUVs(0, Vector2) encoded: position as three floats,

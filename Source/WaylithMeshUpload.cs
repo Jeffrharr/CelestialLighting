@@ -100,6 +100,26 @@ internal static class WaylithMeshUpload
         WriteIndicesAndApply(mesh, array, data, indices, narrow, box);
     }
 
+    // The batched draw's combined mesh: per-emitter layout with field UVs, from many emitters' lists.
+    // Always 32-bit indices, which the batch has asked for since it existed — sixty-four fans can
+    // pass the 16-bit ceiling.
+    internal static void WriteBatch(
+        Mesh mesh, List<Vector3> verts, List<Vector2> uvs, List<Vector4> fieldUvs, List<int> tris)
+    {
+        System.ReadOnlySpan<float> xyz = MemoryMarshal.Cast<Vector3, float>(CollectionsMarshal.AsSpan(verts));
+
+        Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
+        Mesh.MeshData data = array[0];
+
+        data.SetVertexBufferParams(verts.Count, LayoutWithFieldUvs);
+        data.GetVertexData<float>().CopyFrom(VectorLightMeshMath.InterleavePositionUvs(
+            xyz,
+            MemoryMarshal.Cast<Vector2, float>(CollectionsMarshal.AsSpan(uvs)),
+            MemoryMarshal.Cast<Vector4, float>(CollectionsMarshal.AsSpan(fieldUvs))));
+
+        WriteIndicesAndApply(mesh, array, data, tris.ToArray(), narrow: false, VectorLightMeshMath.Bounds(xyz));
+    }
+
     private static void WriteIndicesAndApply(
         Mesh mesh, Mesh.MeshDataArray array, Mesh.MeshData data, int[] indices, bool narrow,
         VectorLightMeshMath.Box box)
