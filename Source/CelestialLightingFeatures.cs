@@ -1506,6 +1506,20 @@ public static class CelestialLightingFeatures
     // construction. See stress_light_mask_indices.json, which alternates arms inside one boot.
     public static bool VectorLightMaskRunIndices = true;
 
+    // Feature key for OverlayColorsInPlace.
+    public const string OverlayColorsInPlaceKey = "overlay_colors_in_place";
+
+    // Vanilla's lighting overlay: our last edit of each section's colours (the vector-light mask or
+    // suppression, Patch_VectorLightSuppress at Priority.Last) is written into the mesh in place
+    // instead of through Mesh.colors32, whose 1.7 setter re-encodes the whole mesh. Only the last
+    // writer may do this; see Patch_VectorLightSuppress.WriteColors. OFF IS THE SETTER.
+    //
+    // ON, MEASURED. 500-lamp colony, four off/on pairs of a whole-map mask rebake (91 sections): the
+    // mask's mesh write went from 1.21-1.79 ms to 0.044-0.063 ms. Frames identical with all visible
+    // sections force-rebuilt under each arm; a mutant writing black in place changed 53.8% of the
+    // frame, so the in-place colours do reach the screen.
+    public static bool OverlayColorsInPlace = true;
+
     // Feature key for MeshColorsInPlace.
     public const string MeshColorsInPlaceKey = "mesh_colors_in_place";
 

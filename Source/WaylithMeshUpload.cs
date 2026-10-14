@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HarmonyLib;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -152,20 +153,31 @@ internal static class WaylithMeshUpload
     // FinalizeMesh, which is always correct. A section's first build is always the fallback: its
     // base geometry has no colour channel until a setter has written one.
     //
-    // THE STUB'S CACHE GOES STALE, AND THAT IS SAFE FOR THIS CALLER. UnityStubs' Mesh keeps a managed
-    // copy of every channel and rebuilds from it on the next setter; after this write that copy still
-    // holds the previous colours. A layer that only ever changes its colours never calls another
-    // setter on the mesh, and if one did, the very next rebuild writes every colour again.
-    internal static bool TryWriteColors(Mesh mesh, List<Color32> colors)
+    // THE STUB'S COLOUR CACHE IS KEPT EXACT (KeepCacheTruthful), so Mesh.colors32 reads the new
+    // colours afterwards and a later setter rebuilds from them, exactly as if the setter had run.
+    internal static bool TryWriteColors(Mesh mesh, List<Color32> colors) =>
+        TryWriteColorsAndCache(mesh, CollectionsMarshal.AsSpan(colors), null);
+
+    // The array form, for the lighting overlay's Color32[] from Mesh.colors32. THE CALLER GIVES UP
+    // THE ARRAY: it becomes the stub's cached copy (see KeepCacheTruthful), so it must not be
+    // written again after this returns.
+    internal static bool TryWriteColors(Mesh mesh, Color32[] colors) =>
+        TryWriteColorsAndCache(mesh, colors, colors);
+
+    // The same write for a caller holding an array — the lighting overlay's colours arrive as
+    // Mesh.colors32's Color32[].
+    //
+    private static bool TryWriteColorsAndCache(
+        Mesh mesh, System.ReadOnlySpan<Color32> colors, Color32[] owned)
     {
         Waylith.Graphics.Meshes.Mesh engine = mesh.EngineMesh;
 
-        if (engine == null || !engine.IsReadable)
+        if (engine == null || !engine.IsReadable || CachedColors == null)
             return false;
 
         Waylith.Graphics.Meshes.CpuMeshData storage = engine.CpuStorage;
 
-        if (storage.VertexCount != colors.Count
+        if (storage.VertexCount != colors.Length
             || !storage.Layout.TryGetAttribute(
                 Waylith.Graphics.Meshes.VertexAttributeSemantic.Color,
                 out Waylith.Graphics.Meshes.VertexAttribute colour)
@@ -177,13 +189,37 @@ internal static class WaylithMeshUpload
 
         int stride = storage.Layout.GetStreamStride(colour.Stream);
         System.Span<byte> stream = storage.GetVertexStream(colour.Stream).AsSpan();
-        System.ReadOnlySpan<Color32> source = CollectionsMarshal.AsSpan(colors);
-
-        for (int i = 0; i < source.Length; i++)
-            MemoryMarshal.Write(stream.Slice(i * stride + colour.OffsetBytes, 4), in source[i]);
+        for (int i = 0; i < colors.Length; i++)
+            MemoryMarshal.Write(stream.Slice(i * stride + colour.OffsetBytes, 4), in colors[i]);
 
         engine.MarkCpuStorageChanged();
+        KeepCacheTruthful(mesh, colors, owned);
         return true;
+    }
+
+    // UnityStubs' Mesh answers Mesh.colors32 from a managed copy of the colours (_compatColors),
+    // and the write above went around it. Left alone, every reader after this write — our probes,
+    // and any other mod that reads the overlay — would see the colours from BEFORE it, and anyone
+    // who then wrote them back would erase ours. Pointing that copy at what we just wrote makes the
+    // getter exact: it returns a clone of this array, just as it would after the setter. If the
+    // cache has not been loaded yet, the next getter decodes the storage we wrote instead, which is
+    // also exact, so the assignment is harmless either way.
+    private static void KeepCacheTruthful(Mesh mesh, System.ReadOnlySpan<Color32> colors, Color32[] owned)
+    {
+        CachedColors(mesh) = owned ?? colors.ToArray();
+    }
+
+    // The stub's private field, reached once. NULL WHEN AN UPDATE RENAMES IT, and then every
+    // in-place write refuses (TryWriteColorsAndCache) and callers take the setter: a missing field
+    // must cost speed, never correctness.
+    private static readonly AccessTools.FieldRef<Mesh, Color32[]> CachedColors = ResolveCachedColors();
+
+    private static AccessTools.FieldRef<Mesh, Color32[]> ResolveCachedColors()
+    {
+        if (AccessTools.Field(typeof(Mesh), "_compatColors")?.FieldType != typeof(Color32[]))
+            return null;
+
+        return AccessTools.FieldRefAccess<Mesh, Color32[]>("_compatColors");
     }
 
     private static void WriteIndicesAndApply(

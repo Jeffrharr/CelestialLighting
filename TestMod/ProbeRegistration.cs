@@ -2568,6 +2568,15 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             });
 
+        // The lighting overlay's final colour write, in place rather than through colors32.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.OverlayColorsInPlaceKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.OverlayColorsInPlace = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
         // Section-layer colours written in place rather than re-encoded (night desaturation).
         FeatureRegistry.Register(
             CelestialLightingFeatures.MeshColorsInPlaceKey,

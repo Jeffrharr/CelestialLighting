@@ -53,7 +53,7 @@ public static class Patch_VectorLightSuppress
         CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, Section.Size, Section.Size);
         rect.ClipInsideMap(map);
 
-        ApplyToMesh(map, __instance.GetSubMesh(MatBases.LightOverlay), rect);
+        ApplyToMesh(map, __instance.GetSubMesh(MatBases.LightOverlay), rect, final: true);
     }
 
     // The suppression, over whichever lighting-overlay mesh is the one actually being drawn.
@@ -70,7 +70,10 @@ public static class Patch_VectorLightSuppress
     // Bake built for it, so there is no reason to settle for that.
     //
     // Returns whether it wrote.
-    internal static bool ApplyToMesh(Map map, LayerSubMesh subMesh, CellRect rect)
+    // `final` is whether this is the last edit of the mesh in its rebuild, which is what lets the
+    // write skip the setter (WriteFinalColors). The vanilla postfix is; As Above, So Below's path is
+    // not, because the underground band's ambient reads the colours after it.
+    internal static bool ApplyToMesh(Map map, LayerSubMesh subMesh, CellRect rect, bool final)
     {
         Mesh mesh = subMesh?.mesh;
 
@@ -81,7 +84,7 @@ public static class Patch_VectorLightSuppress
         // rather than zeroing them, and the two must not both run. Handing over here rather than in a
         // separate patch keeps a single writer for this mesh, which is what stops the ordering
         // between them from being a live concern.
-        if (VectorLightMask.Active && VectorLightMask.Apply(map, mesh, subMesh.verts, rect))
+        if (VectorLightMask.Active && VectorLightMask.Apply(map, mesh, subMesh.verts, rect, final))
             return true;
 
         if (!CelestialLightingFeatures.VectorLightSuppress)
@@ -95,8 +98,28 @@ public static class Patch_VectorLightSuppress
         if (!FloorChannels(colors, CurrentFloor()))
             return false;
 
-        mesh.colors32 = colors;
+        WriteColors(mesh, colors, final);
         return true;
+    }
+
+    // The overlay's colours written back, in place on 1.7 where it can be
+    // (WaylithMeshUpload.TryWriteColors) rather than through Mesh.colors32, whose setter re-encodes
+    // the whole mesh. The array is handed over and not touched again.
+    //
+    // `final` still gates it, for one reason: As Above, So Below's path edits the mesh again
+    // straight after this (the underground band's ambient), through the setter, so an in-place write
+    // there would save nothing. Off, or when the mesh is not the simple case, it is the setter,
+    // exactly as before.
+    internal static void WriteColors(Mesh mesh, Color32[] colors, bool final)
+    {
+        if (final
+            && CelestialLightingFeatures.OverlayColorsInPlace
+            && WaylithMeshUpload.TryWriteColors(mesh, colors))
+        {
+            return;
+        }
+
+        mesh.colors32 = colors;
     }
 
     // The flooring itself, over a colour array rather than a mesh: the pass is purely per-vertex, so
