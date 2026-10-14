@@ -125,24 +125,33 @@ public static class VectorLightMeshMath
     // with field UVs, packed from channel spans because the batch assembles its lists from many
     // emitters (AppendGeometry / AppendFieldUvs) rather than from one bake's arrays. xyz is three
     // floats per vertex, uv two, fieldUvs four; every length is checked against xyz's vertex count.
+    //
+    // fieldUvs EMPTY packs the plain position + uv0 layout instead — the open-sky mask's, which has
+    // no second channel. Empty is unambiguous: a mesh with vertices and a deliberately empty UV1
+    // would be one with the wrong length, which still throws.
     public static float[] InterleavePositionUvs(
         ReadOnlySpan<float> xyz, ReadOnlySpan<float> uv, ReadOnlySpan<float> fieldUvs)
     {
         int count = xyz.Length / PositionFloats;
+        bool withFieldUvs = !fieldUvs.IsEmpty;
 
-        if (xyz.Length != count * PositionFloats || uv.Length != count * 2 || fieldUvs.Length != count * UvFloats)
+        if (xyz.Length != count * PositionFloats || uv.Length != count * 2
+            || (withFieldUvs && fieldUvs.Length != count * UvFloats))
             throw new ArgumentException(
                 $"channel lengths {xyz.Length}/{uv.Length}/{fieldUvs.Length} do not describe one vertex count");
 
-        float[] stream = new float[count * StrideWithFieldUvsFloats];
+        int stride = Stride(withFieldUvs);
+        float[] stream = new float[count * stride];
         Span<float> floats = stream;
 
         for (int i = 0; i < count; i++)
         {
-            Span<float> vertex = floats.Slice(i * StrideWithFieldUvsFloats, StrideWithFieldUvsFloats);
+            Span<float> vertex = floats.Slice(i * stride, stride);
             xyz.Slice(i * PositionFloats, PositionFloats).CopyTo(vertex);
             uv.Slice(i * 2, 2).CopyTo(vertex.Slice(PositionFloats));
-            fieldUvs.Slice(i * UvFloats, UvFloats).CopyTo(vertex.Slice(StrideFloats));
+
+            if (withFieldUvs)
+                fieldUvs.Slice(i * UvFloats, UvFloats).CopyTo(vertex.Slice(StrideFloats));
         }
 
         return stream;
