@@ -323,6 +323,11 @@ public static class VectorLightField
     public static int InvalidationCalls;
     public static int InvalidationMarks;
 
+    // Emitters in reach of a change that the unseen skip left clean, because the changed cells lie
+    // wholly outside the polygon they hold. Not counted in InvalidationMarks: marks is what was
+    // dirtied, and the two together are what was in reach.
+    public static int UnseenSkips;
+
     // Roster resyncs against vanilla's glower sets. A lamp toggle costs one; a per-frame resync
     // would mean something is marking the roster dirty on a cadence rather than on an event.
     public static int RosterResyncs;
@@ -418,6 +423,7 @@ public static class VectorLightField
         BakeSegments = 0;
         InvalidationCalls = 0;
         InvalidationMarks = 0;
+        UnseenSkips = 0;
         RosterResyncs = 0;
         PolygonDeferrals = 0;
         ParallelBakePasses = 0;
@@ -509,7 +515,13 @@ public static class VectorLightField
     // change it is carrying is the one way this goes quietly wrong: passing true where false belongs
     // costs performance and nothing else, passing false where true belongs holds a stale wall, and a
     // default would pick one of those silently for whoever adds the next call site.
-    public static void MarkGeometryDirtyAround(Map map, IntVec3 cell, bool blockerMoved)
+    //
+    // `occupied` IS WHAT CHANGED, `cell` IS WHERE THE REACH IS MEASURED FROM. They are the same cell
+    // for a wall, and differ for a door wider than one: the reach test keeps measuring from the
+    // door's position exactly as before, so the unseen skip turned off is the previous shape bit for
+    // bit, while the skip asks about every cell whose leaves can move.
+    public static void MarkGeometryDirtyAround(
+        Map map, IntVec3 cell, CellRect occupied, bool blockerMoved)
     {
         if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
             return;
@@ -526,9 +538,16 @@ public static class VectorLightField
 
             if (dx * dx + dz * dz <= reach * reach)
             {
-                entry.GeometryDirty = true;
-                entry.PolygonDirty = true;
-                InvalidationMarks++;
+                if (CanSee(entry, occupied))
+                {
+                    entry.GeometryDirty = true;
+                    entry.PolygonDirty = true;
+                    InvalidationMarks++;
+                }
+                else
+                {
+                    UnseenSkips++;
+                }
 
                 // A wall appearing or vanishing also rewrites vanilla's geodesic distances through
                 // that cell, so the samples go with the geometry. A rebuild resamples anyway; this
@@ -550,6 +569,31 @@ public static class VectorLightField
                     entry.Silhouette.Invalidate();
             }
         }
+    }
+
+    // Whether a change inside `occupied` can move this emitter's polygon. See VectorLightUnseenMath
+    // for the argument and the margin.
+    //
+    // ONLY A CLEAN POLYGON CAN ANSWER "NO". One already dirty — or never built, or deferred by the
+    // view cull — describes geometry from before some change still waiting to be baked, so it says
+    // nothing about what is visible now. Answering yes there costs nothing: the flag is already set.
+    //
+    // Read on the main thread, which is the only thread that writes the polygon outside the bake's
+    // join (see BakeSelected), so the arrays cannot be swapped underneath it.
+    private static bool CanSee(LightEntry entry, CellRect occupied)
+    {
+        if (!CelestialLightingFeatures.VectorLightUnseenSkip
+            || entry.PolygonDirty
+            || entry.Polygon.Count == 0)
+        {
+            return true;
+        }
+
+        return VectorLightUnseenMath.TouchesRect(
+            entry.Polygon.Angles, entry.Polygon.Distances, entry.Polygon.Count,
+            entry.Cell.x + 0.5f, entry.Cell.z + 0.5f,
+            occupied.minX, occupied.minZ, occupied.maxX + 1, occupied.maxZ + 1,
+            VectorLightUnseenMath.Margin(entry.Radius, VectorLightMath.DefaultBaseRayCount));
     }
 
     // The void veto's surface mask at `cell` changed, and nothing else did.

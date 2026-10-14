@@ -307,6 +307,10 @@ public sealed class VectorLightBakeProbe : IProbe
         // is what makes the off arm a baseline rather than a picture of the feature missing.
         UnchangedBakes,
 
+        // Emitters in reach of a change that the unseen skip left clean. See
+        // VectorLightField.UnseenSkips. Zero under the flag turned off by construction.
+        UnseenSkips,
+
         // How many emitters the field currently holds. The denominator for MarksPerCall, and the
         // thing that says a scenario's lamps actually registered.
         Emitters,
@@ -566,6 +570,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.UnchangedBakes)
             return VectorLightField.UnchangedBakes;
+
+        if (metric == Metric.UnseenSkips)
+            return VectorLightField.UnseenSkips;
 
         if (metric == Metric.CoverageMean)
             return CoverageMean(map);

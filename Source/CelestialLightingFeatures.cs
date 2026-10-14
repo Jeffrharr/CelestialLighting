@@ -1929,6 +1929,25 @@ public static class CelestialLightingFeatures
     // so the arm is a baseline rather than a picture of the feature missing.
     public static bool VectorLightChangedDirty = true;
 
+    // Feature key for VectorLightUnseenSkip.
+    public const string VectorLightUnseenSkipKey = "vector_light_unseen_skip";
+
+    // Don't mark an emitter dirty for a door or wall it cannot see.
+    //
+    // WHAT THE CHANGED-DIRTY FEATURE ABOVE LEFT. It stopped a spurious rebake dirtying sections, but
+    // could only tell a rebake was spurious by doing it: the lamp sealed away from a swinging door
+    // still gathered, baked, rebuilt and re-uploaded its mesh nine times an opening to arrive at the
+    // grid it already had. This asks VectorLightUnseenMath first, against the polygon the lamp holds,
+    // and leaves the lamp clean when the changed cells lie wholly outside it.
+    //
+    // ONLY THE GEOMETRY IS SKIPPED. A blocker write still invalidates the silhouette memo and the
+    // vanilla samples, because the occluder grid and vanilla's flood really did change; what cannot
+    // have changed is the polygon. Off marks every emitter in reach, which is the previous shape
+    // exactly, so the arm is a baseline. Measured by vector_light_unseen_skips beside
+    // vector_light_invalidation_marks and vector_light_unchanged_bakes: the skips should come out of
+    // the unchanged bakes, and the changed ones should not move.
+    public static bool VectorLightUnseenSkip = true;
+
     // Feature key for VectorLightPropsHold.
     public const string VectorLightPropsHoldKey = "vector_light_props_hold";
 

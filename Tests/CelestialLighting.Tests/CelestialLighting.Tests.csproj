@@ -291,6 +291,11 @@
     <!-- Vector-light mesh layout for the one-write upload on 1.7 (WaylithMeshUpload). Standalone:
          takes the bake's float arrays, so it needs nothing above. -->
     <Compile Include="../../Source/VectorLightMeshMath.cs" Link="VectorLightMeshMath.cs" />
+    <!-- Whether a door swing can move a lamp's polygon at all, answered from the polygon the lamp
+         already holds. Standalone: the fan's own float arrays in, a bool out. Linked rather than
+         copied because the fixture's claim is about the SHIPPED margin — that a rebake the
+         predicate declined would have produced the same coverage grid byte for byte. -->
+    <Compile Include="../../Source/VectorLightUnseenMath.cs" Link="VectorLightUnseenMath.cs" />
     <!-- When a batched vector-light emitter may join its batch, and when the batch rebuilds to admit
          it (VectorLightDrawBatch's roster). Standalone: frame numbers in, verdicts out. -->
     <Compile Include="../../Source/VectorLightBatchRosterMath.cs" Link="VectorLightBatchRosterMath.cs" />
