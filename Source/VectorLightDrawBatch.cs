@@ -399,8 +399,9 @@ internal static class VectorLightDrawBatch
     // Vanilla's square for every member, stacked into one texture array — and re-copied only for the
     // slices whose emitter's texture actually moved.
     //
-    // A GPU-SIDE COPY, NOT A REFILL. Graphics.CopyTexture hands the driver a blit between two
-    // textures that already exist; the alternative would be re-running CopyField's per-texel loop
+    // AN UPLOAD OF BYTES ALREADY COMPUTED, NOT A REFILL. Each slice receives the emitter's field
+    // texels as they already sit in its CPU level (WaylithFieldUpload.TryUploadToLayer); 1.7 cannot
+    // copy a Texture2D into an array slice on the GPU at all. The alternative would be re-running CopyField's per-texel loop
     // into the array, which is the expensive half of a field upload and would be paid again here for
     // no new information. It is also what keeps the per-emitter path completely untouched: the
     // emitter still owns its own Texture2D, filled exactly as it always was, and the batch copies
@@ -425,10 +426,13 @@ internal static class VectorLightDrawBatch
                 continue;
             }
 
-            Graphics.CopyTexture(entry.VanillaField, 0, 0, batch.Slices, slot, 0);
-
-            batch.SliceSources[slot] = entry.VanillaField;
-            batch.SliceVersions[slot] = entry.FieldVersion;
+            // Unrecorded on refusal, so the slot is retried next frame instead of being marked
+            // current while holding a previous emitter's square.
+            if (WaylithFieldUpload.TryUploadToLayer(entry.VanillaField, batch.Slices, slot))
+            {
+                batch.SliceSources[slot] = entry.VanillaField;
+                batch.SliceVersions[slot] = entry.FieldVersion;
+            }
         }
     }
 
@@ -463,6 +467,10 @@ internal static class VectorLightDrawBatch
             filterMode = FilterMode.Bilinear,
             name = "CelestialLighting_VectorLightFields",
         };
+
+        // Allocates the array's GPU image now, with no layer data to send. Layer uploads need an
+        // image to land in, and 1.7 creates one only on Apply.
+        batch.Slices.Apply(updateMipmaps: false);
 
         // Every slice is now unwritten, whatever was copied into the old array. Sized to the array
         // rather than to the frame so a later, larger frame cannot index past them.

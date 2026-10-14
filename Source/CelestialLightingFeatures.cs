@@ -2127,7 +2127,16 @@ public static class CelestialLightingFeatures
     // vertex writing than rebuilding one emitter's. The batch is a steady-frame win paid for on the
     // frames that move. Whether that trade is worth taking is a measurement, and the arms exist to
     // make it one.
-    public static bool VectorLightDrawBatch = true;
+    //
+    // OFF ON 1.7 UNTIL ITS FRAME MATCHES. Batching now runs on 1.7 (the batched program ships as its
+    // own shader, slices are filled by direct layer uploads) and cuts the 20-lamp plate's draw calls
+    // 19x, but the batched frame is not the per-emitter frame: vector_light_draw_batch_ab measures
+    // 7.4% of pixels changed, p99 dE 1.63, the batched pass adding ~10% less of our own light at
+    // the lamp and less with distance. Ruled out by measurement: the vanilla slices (the gap
+    // persists with the subtraction off), the one-write batch mesh (identical with the setters),
+    // the material, colour binding and array lifetime. 1.6 measured this pair at dE 0.00, so the
+    // remaining cause is in how 1.7 runs the batched program. Off is what 1.7 has always drawn.
+    public static bool VectorLightDrawBatch = false;
 
     // Feature key for VectorLightSilhouetteCache.
     public const string VectorLightSilhouetteCacheKey = "vector_light_silhouette_cache";
