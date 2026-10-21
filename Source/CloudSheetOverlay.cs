@@ -130,6 +130,15 @@ public static class CloudSheetOverlay
         // frame anyway (issue #12), but reading it here keeps the per-sheet body free of live state.
         float azimuth = volumetric ? CloudLayers.SunAzimuthFor(map) : 0f;
 
+        // The fly-through zoom mode's growth, read once per frame: it is a property of the camera,
+        // not of a sheet. Every sheet scales about the camera's ground position rather than its own
+        // centre, so the deck spreads outward from the middle of the screen instead of each cloud
+        // swelling in place on top of its neighbours. 1 in every other mode, which leaves the
+        // transform below exactly what it was.
+        float zoomScale = CloudZoomMath.ScaleAt(
+            CloudSheetSettings.ZoomMode, CloudLayers.CameraZoomFraction());
+        Vector3 pivot = Find.Camera.transform.position;
+
         for (int i = 0; i < count; i++)
         {
             CloudSheetLayout.Placement placement = Placements[i];
@@ -182,9 +191,12 @@ public static class CloudSheetOverlay
             Graphics.DrawMesh(
                 MeshPool.plane10,
                 Matrix4x4.TRS(
-                    new Vector3(placement.CenterX, altitude, placement.CenterZ),
+                    new Vector3(
+                        CloudZoomMath.ScaleAbout(placement.CenterX, pivot.x, zoomScale),
+                        altitude,
+                        CloudZoomMath.ScaleAbout(placement.CenterZ, pivot.z, zoomScale)),
                     Quaternion.identity,
-                    new Vector3(placement.Size, 1f, placement.Size)),
+                    new Vector3(placement.Size * zoomScale, 1f, placement.Size * zoomScale)),
                 material,
                 0);
         }

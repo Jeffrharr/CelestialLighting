@@ -255,6 +255,10 @@
          this list is ordered by dependency, and their only dependency is CloudField. -->
     <Compile Include="../../Source/CloudShadowMath.cs" Link="CloudShadowMath.cs" />
     <Compile Include="../../Source/CloudSheetMath.cs" Link="CloudSheetMath.cs" />
+    <!-- What zooming in does to the drawn sheets: their opacity and draw scale at a zoom fraction.
+         No dependencies at all — the camera read lives in CloudLayers — so it could sit anywhere;
+         it sits beside CloudSheetMath because the two multiply into the same sheet alpha. -->
+    <Compile Include="../../Source/CloudZoomMath.cs" Link="CloudZoomMath.cs" />
     <!-- The Clouds interop's policy half: which cloud lanes stand down when another mod is
          drawing the clouds. Pure, so the ruling is pinned offline rather than only on screen. -->
     <Compile Include="../../Source/CloudsCompatMath.cs" Link="CloudsCompatMath.cs" />

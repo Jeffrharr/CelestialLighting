@@ -261,8 +261,30 @@ public static class CloudLayers
         // one, for the same reason the gate above changed: those two are the same number until a sheet
         // outlives the cover it entered under, and on that frame the live one says "no cloud" about a
         // sky that visibly has one.
-        return CloudSheetMath.SheetAlphaWithAmplitude(
+        // The player's zoom choice, folded into the finished alpha rather than the amplitude: it is
+        // a fact about where the camera is, not about how thick any cloud is. Applied HERE for the
+        // same shared-read reason the opacity slider is — the probe on this function must report
+        // what reaches a pixel — and it also means a fully faded deck makes the overlay's own
+        // `alpha <= 0` early-out skip every draw call. Shadows and underlight never read this
+        // function, so they keep drawing at any zoom.
+        float zoomOpacity = CloudZoomMath.OpacityAt(CloudSheetSettings.ZoomMode, CameraZoomFraction());
+
+        return zoomOpacity * CloudSheetMath.SheetAlphaWithAmplitude(
             cover, amplitude, Vacuum.InVacuumForMap(map));
+    }
+
+    // Where the camera sits in its zoom range, 0 closest to 1 furthest — see
+    // CloudZoomMath.ZoomFraction for why a fraction rather than the raw size. RootSize is the eased
+    // size, not the target the scroll wheel set, so a fade driven by it moves smoothly with the
+    // camera. No driver (a menu, world view) answers 1, the value at which every zoom mode is inert.
+    public static float CameraZoomFraction()
+    {
+        CameraDriver driver = Find.CameraDriver;
+        if (driver == null)
+            return 1f;
+
+        FloatRange range = driver.config.sizeRange;
+        return CloudZoomMath.ZoomFraction(driver.RootSize, range.min, range.max);
     }
 
     // The SUNWARD end of the layer's colour: §8's own target colour at this elevation, not a second

@@ -78,6 +78,12 @@ public class CelestialLightingSettings : ModSettings
     // checkbox — 0 makes the same no-draw-call decision cloudSheet off does.
     public float cloudOpacity = CloudSheetMath.DefaultOpacityScale;
 
+    // What zooming in does to those sheets: nothing, a gradual fade, or a short fly-through. A choice
+    // of look rather than a strength, so a radio rather than a slider — see CloudZoomMath for why
+    // both behaviours exist. Off by default, so an existing player's view is unchanged until they
+    // pick one.
+    public CloudZoomMath.Mode cloudZoomMode = CloudZoomMath.Mode.Off;
+
     public bool eaveShadows = true;
 
     // §27 vector light sources. It is the most opinionated thing in the mod, because light vanilla
@@ -368,6 +374,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.CloudSheet = cloudSheet;
         CelestialLightingFeatures.CloudVolume = cloudVolume;
         CloudSheetSettings.OpacityScale = cloudOpacity;
+        CloudSheetSettings.ZoomMode = cloudZoomMode;
 
         // SyncTo rather than a plain assignment, and the order matters: half of §27 is BAKED into
         // the lighting overlay's vertex colours during a section regenerate, so flipping the switch
@@ -520,6 +527,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref cloudOpacity, "cloudOpacity", CloudSheetMath.DefaultOpacityScale);
+        Scribe_Values.Look(ref cloudZoomMode, "cloudZoomMode", CloudZoomMath.Mode.Off);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
         Scribe_Values.Look(ref vectorLightShadowPlayerPawns, "vectorLightShadowPlayerPawns", true);
