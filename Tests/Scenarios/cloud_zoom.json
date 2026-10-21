@@ -1,0 +1,320 @@
+{
+  "name": "cloud_zoom",
+  "saveFile": "minimal_colony.rws",
+  "description": "The \"Clouds when zoomed in\" radio, photographed in each of its three positions at three camera zooms (root size 30, 17 and 12) inside ONE boot. Same tile, hour, forced overcast and paused clock as cloud_opacity.json, for the same reason: the sheets are memoised per tick and no arm advances the clock, so every frame shows the same clouds in the same places and only the zoom mode and framing differ. The cloud_sheet_alpha probe reports the zoom-scaled alpha, so its readings per arm show each mode's curve reaching the game; The alpha pins are MEASURED on a Steam Deck, whose closest zoom is 7.2 rather than a PC's 11 \u2014 so a PC run reads different alphas in the zoomed arms (the curves are in zoom-range fractions). Re-measure there rather than re-deriving. The camera looks 40 cells east and 12 south of the default so a sheet stays in frame at every zoom; at the default framing the zoomed-in arms show no cloud in ANY mode, Off included, and would compare nothing. Cloud shadows are expected to remain in every frame \u2014 only the drawn sheets respond to zoom.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_day_length",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_overcast",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_warmup_discard.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_off_far.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_off_close.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_off_closest.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_fade",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fade_far.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.3346",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fade_close.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.0986",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fade_closest.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_fade",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_flythrough",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fly_far.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fly_close.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,-12",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.1269",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cz_fly_closest.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_flythrough",
+        "enabled": "false"
+      }
+    }
+  ]
+}

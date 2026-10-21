@@ -2770,6 +2770,17 @@ public static class ProbeRegistration
             CloudOpacityOverride.ZeroFeatureKey,
             enabled => CloudOpacityOverride.SetZero(enabled),
             defaultEnabled: false);
+        // The two non-default positions of the "Clouds when zoomed in" radio, for the same reason
+        // as the opacity pair above: a choice SetFeature cannot otherwise reach, compared inside one
+        // boot. defaultEnabled FALSE so a ResetAll puts the zoom mode back to Off.
+        FeatureRegistry.Register(
+            CloudZoomModeOverride.FadeFeatureKey,
+            enabled => CloudZoomModeOverride.SetFade(enabled),
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CloudZoomModeOverride.FlyThroughFeatureKey,
+            enabled => CloudZoomModeOverride.SetFlyThrough(enabled),
+            defaultEnabled: false);
         // Same shape and the same reasoning as the two above — the positions of a FLOAT slider that
         // SetFeature cannot otherwise reach — with one extra obligation that is easy to miss:
         // VectorLightReachOverride rebuilds every polygon on the map when it fires, because reach is
