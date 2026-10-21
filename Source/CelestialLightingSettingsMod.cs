@@ -198,6 +198,7 @@ public class CelestialLightingSettingsMod : Mod
         GatedSlider(listing, "      Cloud opacity", ref Settings.cloudOpacity, 0f, 1f,
             Settings.cloudCover && Settings.cloudSheet,
             "How much of the map a cloud hides as it passes over. 1.00 is the calibrated look — thin enough to read your colony through, which is what holds it down. Wind it down for clouds that are barely there, or to 0 for none at all (identical to unticking \"Visible clouds\", down to the draw call).\n\nIt changes only how opaque each cloud is, never how many there are: a 60% sky stays a 60% sky, drawn more faintly. There is no setting above 1.00 because a denser cloud than this puts an opaque lid over the colony at the point where several of them overlap.");
+        DrawCloudZoomRadio(listing, Settings.cloudCover && Settings.cloudSheet);
         ShowExternalCloudSource(listing);
         // §27. The label says "experimental" because the tooltip cannot be read from the mod list,
         // and this is the one switch on this screen that changes how a colony is LIT rather than
@@ -470,6 +471,28 @@ public class CelestialLightingSettingsMod : Mod
     {
         if (listing.RadioButton(label, Settings.sunClock == option, tabIn: 8f, tooltip))
             Settings.sunClock = option;
+    }
+
+    // What zooming in does to the drawn clouds. Shadows are deliberately not part of any option —
+    // the tooltips say so, because "clouds vanish when I zoom in" otherwise reads as "the weather
+    // cleared". Greyed out with the opacity slider above for the same reason it is: a choice about
+    // clouds that are not being drawn claims an effect that is not there.
+    private void DrawCloudZoomRadio(Listing_Standard listing, bool enabled)
+    {
+        listing.Label("      Clouds when zoomed in");
+        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.Off, "Always drawn  (default)",
+            "Clouds are drawn the same at every zoom level.");
+        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.Fade, "Fade as you zoom in",
+            "Clouds thin out gradually from about the zoom where your whole base fits on screen, and are gone at the closest zoom. Up close a cloud fills the screen with no edge in view and reads as fog; this keeps it for the wide view where it reads as weather.\n\nCloud shadows on the ground are unaffected — you are still under the cloud.");
+        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.FlyThrough, "Fly through them",
+            "Clouds stay fully drawn until you are zoomed well in, then rush outward past the edges of the screen as they fade, as if the camera had descended through the cloud layer.\n\nCloud shadows on the ground are unaffected — you are still under the cloud.");
+    }
+
+    private void DrawCloudZoomOption(
+        Listing_Standard listing, bool enabled, CloudZoomMath.Mode option, string label, string tooltip)
+    {
+        if (listing.RadioButton(label, Settings.cloudZoomMode == option, 32f, tooltip, null, !enabled))
+            Settings.cloudZoomMode = option;
     }
 
     private void DrawEclipseModeRadio(Listing_Standard listing)

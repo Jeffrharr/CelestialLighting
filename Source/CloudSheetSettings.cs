@@ -17,4 +17,9 @@ public static class CloudSheetSettings
     // 1 == the shipped look, 0 == no drawn cloud at all. See CloudSheetMath.AmplitudeAtOpacity for
     // what it multiplies, why the range does not go above 1, and why the bottom end is a true no-op.
     public static float OpacityScale = CloudSheetMath.DefaultOpacityScale;
+
+    // What zooming the camera in does to the sheets. See CloudZoomMath for the two behaviours and
+    // why both ship. Here rather than in the feature flags because it is a choice between three
+    // looks, not a switch.
+    public static CloudZoomMath.Mode ZoomMode = CloudZoomMath.Mode.Off;
 }
