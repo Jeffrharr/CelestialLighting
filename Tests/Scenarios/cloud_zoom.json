@@ -1,7 +1,7 @@
 {
   "name": "cloud_zoom",
   "saveFile": "minimal_colony.rws",
-  "description": "The \"Clouds when zoomed in\" radio, photographed in each of its three positions at three camera zooms (root size 30, 17 and 12) inside ONE boot. Same tile, hour, forced overcast and paused clock as cloud_opacity.json, for the same reason: the sheets are memoised per tick and no arm advances the clock, so every frame shows the same clouds in the same places and only the zoom mode and framing differ. The cloud_sheet_alpha probe reports the zoom-scaled alpha, so its readings per arm show each mode's curve reaching the game; The alpha pins are MEASURED on a Steam Deck, whose closest zoom is 7.2 rather than a PC's 11 \u2014 so a PC run reads different alphas in the zoomed arms (the curves are in zoom-range fractions). Re-measure there rather than re-deriving. The camera looks 40 cells east and 12 south of the default so a sheet stays in frame at every zoom; at the default framing the zoomed-in arms show no cloud in ANY mode, Off included, and would compare nothing. Cloud shadows are expected to remain in every frame \u2014 only the drawn sheets respond to zoom.",
+  "description": "The \"Clouds when zoomed in\" radio, photographed in each of its three positions (the \"off\" arm forces \"Always drawn\" with cloud_zoom_always, since the shipped default is now the fly-through cutoff) at three camera zooms (root size 30, 17 and 12) inside ONE boot. Same tile, hour, forced overcast and paused clock as cloud_opacity.json, for the same reason: the sheets are memoised per tick and no arm advances the clock, so every frame shows the same clouds in the same places and only the zoom mode and framing differ. The cloud_sheet_alpha probe reports the zoom-scaled alpha, so its readings per arm show each mode's curve reaching the game; The alpha pins are MEASURED on a Steam Deck, whose closest zoom is 7.2 rather than a PC's 11 \u2014 so a PC run reads different alphas in the zoomed arms (the curves are in zoom-range fractions). Re-measure there rather than re-deriving. The camera looks 40 cells east and 12 south of the default so a sheet stays in frame at every zoom; at the default framing the zoomed-in arms show no cloud in ANY mode, Off included, and would compare nothing. Cloud shadows are expected to remain in every frame \u2014 only the drawn sheets respond to zoom.",
   "steps": [
     {
       "type": "SetTile",
@@ -100,6 +100,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_always",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "LookAt",
       "args": {
         "offset": "40,-12",
@@ -160,6 +167,13 @@
       "type": "Screenshot",
       "args": {
         "fileName": "cz_off_closest.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_zoom_always",
+        "enabled": "false"
       }
     },
     {
@@ -278,7 +292,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_alpha",
-        "expectedValue": "0.7500",
+        "expectedValue": "0.3812",
         "tolerance": "0.0005"
       }
     },
@@ -299,7 +313,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_alpha",
-        "expectedValue": "0.1269",
+        "expectedValue": "0.0000",
         "tolerance": "0.0005"
       }
     },
