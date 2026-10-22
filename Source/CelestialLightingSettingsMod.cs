@@ -480,12 +480,35 @@ public class CelestialLightingSettingsMod : Mod
     private void DrawCloudZoomRadio(Listing_Standard listing, bool enabled)
     {
         listing.Label("      Clouds when zoomed in");
-        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.Off, "Always drawn  (default)",
+        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.Off, "Always drawn",
             "Clouds are drawn the same at every zoom level.");
         DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.Fade, "Fade as you zoom in",
             "Clouds thin out gradually from about the zoom where your whole base fits on screen, and are gone at the closest zoom. Up close a cloud fills the screen with no edge in view and reads as fog; this keeps it for the wide view where it reads as weather.\n\nCloud shadows on the ground are unaffected — you are still under the cloud.");
-        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.FlyThrough, "Fly through them",
+        DrawCloudZoomOption(listing, enabled, CloudZoomMath.Mode.FlyThrough, "Fly through them  (default)",
             "Clouds stay fully drawn until you are zoomed well in, then rush outward past the edges of the screen as they fade, as if the camera had descended through the cloud layer.\n\nCloud shadows on the ground are unaffected — you are still under the cloud.");
+        DrawCloudZoomStart(listing, enabled);
+    }
+
+    // Where the selected mode starts clearing. One slider, bound to whichever mode is picked, each mode
+    // keeping its own value — the two want very different framings. Hidden for "Always drawn", which
+    // has nothing to place. A percentage of the zoom range rather than a raw camera size, because the
+    // range differs between a PC and a Steam Deck (see CloudZoomMath).
+    private void DrawCloudZoomStart(Listing_Standard listing, bool enabled)
+    {
+        CloudZoomMath.Mode mode = Settings.cloudZoomMode;
+        if (mode == CloudZoomMath.Mode.Off)
+            return;
+
+        string tooltip = "How far zoomed out the clouds start to clear, as a share of the zoom range: 0% is fully zoomed in, 100% fully zoomed out. Raise it to lose the clouds sooner as you zoom in, lower it to keep them until you are closer.\n\n"
+            + (mode == CloudZoomMath.Mode.Fade
+                ? "Fade thins the clouds from this zoom down to the closest zoom."
+                : "Fly through clears the clouds over a short stretch just below this zoom.");
+        if (mode == CloudZoomMath.Mode.Fade)
+            GatedSlider(listing, "        Clouds clear below zoom", ref Settings.cloudZoomFadeStart,
+                CloudZoomMath.MinStart, CloudZoomMath.MaxStart, enabled, tooltip);
+        else
+            GatedSlider(listing, "        Clouds clear below zoom", ref Settings.cloudZoomFlyThroughStart,
+                CloudZoomMath.MinStart, CloudZoomMath.MaxStart, enabled, tooltip);
     }
 
     private void DrawCloudZoomOption(

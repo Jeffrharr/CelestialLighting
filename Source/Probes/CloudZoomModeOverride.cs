@@ -13,8 +13,13 @@ public static class CloudZoomModeOverride
 
     public const string FlyThroughFeatureKey = "cloud_zoom_flythrough";
 
+    // "Always drawn". Needed now that the shipped default is FlyThrough: without it a scenario has no
+    // way to reach the unchanged look, and its "off" arm would silently be the cutoff.
+    public const string AlwaysFeatureKey = "cloud_zoom_always";
+
     private static bool fade;
     private static bool flyThrough;
+    private static bool always;
 
     public static void SetFade(bool enabled)
     {
@@ -28,12 +33,20 @@ public static class CloudZoomModeOverride
         Apply();
     }
 
-    // FlyThrough wins when both are on, stated rather than left to which key a scenario set last.
+    public static void SetAlways(bool enabled)
+    {
+        always = enabled;
+        Apply();
+    }
+
+    // Precedence Always > FlyThrough > Fade, stated rather than left to which key a scenario set last.
+    // No key set is the shipped default, FlyThrough, so ResetAll returns a suite to what players get.
     private static void Apply()
     {
-        CloudZoomMath.Mode mode = flyThrough ? CloudZoomMath.Mode.FlyThrough
+        CloudZoomMath.Mode mode = always ? CloudZoomMath.Mode.Off
+            : flyThrough ? CloudZoomMath.Mode.FlyThrough
             : fade ? CloudZoomMath.Mode.Fade
-            : CloudZoomMath.Mode.Off;
+            : CloudZoomMath.Mode.FlyThrough;
         CloudSheetSettings.ZoomMode = mode;
 
         // Logged on every flip: a silent test hook is indistinguishable from the feature not working.

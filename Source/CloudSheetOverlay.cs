@@ -136,7 +136,7 @@ public static class CloudSheetOverlay
         // swelling in place on top of its neighbours. 1 in every other mode, which leaves the
         // transform below exactly what it was.
         float zoomScale = CloudZoomMath.ScaleAt(
-            CloudSheetSettings.ZoomMode, CloudLayers.CameraZoomFraction());
+            CloudSheetSettings.ZoomMode, CloudLayers.CameraZoomFraction(), CloudSheetSettings.ZoomStart);
         Vector3 pivot = Find.Camera.transform.position;
 
         for (int i = 0; i < count; i++)

@@ -48,8 +48,8 @@ public class CloudZoomMathTests
     [TestCase(1f)]
     public void OffChangesNothingAtAnyZoom(float zoom)
     {
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Off, zoom), Is.EqualTo(1f));
-        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.Off, zoom), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Off, zoom, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.Off)), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.Off, zoom, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.Off)), Is.EqualTo(1f));
     }
 
     // Zoomed all the way out, every mode is the shipped look.
@@ -57,8 +57,8 @@ public class CloudZoomMathTests
     [TestCase(CloudZoomMath.Mode.FlyThrough)]
     public void EveryModeIsInertZoomedOut(CloudZoomMath.Mode mode)
     {
-        Assert.That(CloudZoomMath.OpacityAt(mode, 1f), Is.EqualTo(1f));
-        Assert.That(CloudZoomMath.ScaleAt(mode, 1f), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.OpacityAt(mode, 1f, CloudZoomMath.DefaultStartFor(mode)), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.ScaleAt(mode, 1f, CloudZoomMath.DefaultStartFor(mode)), Is.EqualTo(1f));
     }
 
     // Fully gone at the closest zoom — a floor would be exactly the fog-like wash this removes.
@@ -66,7 +66,7 @@ public class CloudZoomMathTests
     [TestCase(CloudZoomMath.Mode.FlyThrough)]
     public void EveryModeIsGoneAtTheClosestZoom(CloudZoomMath.Mode mode)
     {
-        Assert.That(CloudZoomMath.OpacityAt(mode, 0f), Is.EqualTo(0f));
+        Assert.That(CloudZoomMath.OpacityAt(mode, 0f, CloudZoomMath.DefaultStartFor(mode)), Is.EqualTo(0f));
     }
 
     // Monotone in zoom for both modes: zooming in never brings cloud back.
@@ -74,10 +74,10 @@ public class CloudZoomMathTests
     [TestCase(CloudZoomMath.Mode.FlyThrough)]
     public void OpacityNeverRisesAsYouZoomIn(CloudZoomMath.Mode mode)
     {
-        float previous = CloudZoomMath.OpacityAt(mode, 1f);
+        float previous = CloudZoomMath.OpacityAt(mode, 1f, CloudZoomMath.DefaultStartFor(mode));
         for (int step = 99; step >= 0; step--)
         {
-            float opacity = CloudZoomMath.OpacityAt(mode, step / 100f);
+            float opacity = CloudZoomMath.OpacityAt(mode, step / 100f, CloudZoomMath.DefaultStartFor(mode));
             Assert.That(opacity, Is.LessThanOrEqualTo(previous + Tolerance), $"zoom {step / 100f}");
             previous = opacity;
         }
@@ -88,9 +88,9 @@ public class CloudZoomMathTests
     [Test]
     public void FadeIsGradualWhereFlyThroughIsStillFull()
     {
-        const float zoom = 0.2f;
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, zoom), Is.InRange(0.1f, 0.9f));
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, zoom), Is.EqualTo(1f));
+        const float zoom = 0.3f;
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, zoom, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.Fade)), Is.InRange(0.1f, 0.9f));
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, zoom, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)), Is.EqualTo(1f));
     }
 
     // The window's ends, and that the middle is genuinely between them (a window with width, not a
@@ -98,13 +98,13 @@ public class CloudZoomMathTests
     [Test]
     public void FlyThroughFadesInsideItsWindow()
     {
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, CloudZoomMath.FlyThroughStart),
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, CloudZoomMath.DefaultFlyThroughStart, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, CloudZoomMath.FlyThroughEnd),
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, (CloudZoomMath.DefaultFlyThroughStart - CloudZoomMath.FlyThroughWidth), CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)),
             Is.EqualTo(0f).Within(Tolerance));
 
-        float middle = (CloudZoomMath.FlyThroughStart + CloudZoomMath.FlyThroughEnd) / 2f;
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, middle), Is.EqualTo(0.5f).Within(Tolerance));
+        float middle = CloudZoomMath.DefaultFlyThroughStart - CloudZoomMath.FlyThroughWidth / 2f;
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, middle, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)), Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     // Growth tracks the fade: unit scale while fully drawn, full growth once gone, and only
@@ -112,11 +112,11 @@ public class CloudZoomMathTests
     [Test]
     public void FlyThroughGrowsInStepWithItsFade()
     {
-        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, CloudZoomMath.FlyThroughStart),
+        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, CloudZoomMath.DefaultFlyThroughStart, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, 0f),
+        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, 0f, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)),
             Is.EqualTo(1f + CloudZoomMath.FlyThroughGrowth).Within(Tolerance));
-        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.Fade, 0f), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.Fade, 0f, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.Fade)), Is.EqualTo(1f));
     }
 
     [TestCase(10f, 10f, 2f, 10f, TestName = "PivotStaysPut")]
@@ -131,7 +131,46 @@ public class CloudZoomMathTests
     [Test]
     public void NaNZoomIsInert()
     {
-        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, float.NaN), Is.EqualTo(1f));
-        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, float.NaN), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, float.NaN, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.Fade)), Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.ScaleAt(CloudZoomMath.Mode.FlyThrough, float.NaN, CloudZoomMath.DefaultStartFor(CloudZoomMath.Mode.FlyThrough)), Is.EqualTo(1f));
+    }
+
+    // The slider moves the window: a start further out clears the clouds at a framing the default
+    // still draws them at.
+    [Test]
+    public void RaisingTheStartClearsCloudsSooner()
+    {
+        const float zoom = 0.28f;
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, zoom, CloudZoomMath.DefaultFlyThroughStart),
+            Is.EqualTo(1f));
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, zoom, 0.35f), Is.LessThan(0.5f));
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, zoom, 0.6f),
+            Is.LessThan(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.Fade, zoom, CloudZoomMath.DefaultFadeStart)));
+    }
+
+    // A start low enough to push the window's end past the closest zoom shortens the window rather
+    // than leaving cloud on screen fully zoomed in.
+    [Test]
+    public void ALowStartStillClearsAtTheClosestZoom()
+    {
+        Assert.That(CloudZoomMath.OpacityAt(CloudZoomMath.Mode.FlyThrough, 0f, CloudZoomMath.MinStart), Is.EqualTo(0f));
+    }
+
+    [TestCase(-1f, CloudZoomMath.MinStart, TestName = "StartBelowRangeClamps")]
+    [TestCase(5f, CloudZoomMath.MaxStart, TestName = "StartAboveRangeClamps")]
+    [TestCase(float.NaN, CloudZoomMath.DefaultFlyThroughStart, TestName = "NaNStartIsTheDefault")]
+    public void StoredStartsAreClamped(float start, float expected)
+    {
+        Assert.That(CloudZoomMath.ClampStart(CloudZoomMath.Mode.FlyThrough, start), Is.EqualTo(expected));
+    }
+
+    // The two defaults: the cutoff one zoom-key step (x1.3 root size) further out than the 0.15
+    // play-tested first, measured on the Deck's 7.2-60 range.
+    [Test]
+    public void FlyThroughDefaultIsOneZoomStepOutFromTheFirstCut()
+    {
+        float firstCut = 7.2f + 0.15f * (60f - 7.2f);
+        float oneStepOut = CloudZoomMath.ZoomFraction(firstCut * 1.297f, 7.2f, 60f);
+        Assert.That(CloudZoomMath.DefaultFlyThroughStart, Is.EqualTo(oneStepOut).Within(0.01f));
     }
 }
