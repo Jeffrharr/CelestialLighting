@@ -29230,6 +29230,41 @@ and its tests are untouched and only the knob is gone. An existing config carryi
 `<vectorLightBeamStrength>` loads clean: `Scribe_Values` ignores an element with no field to load
 into, and the node is dropped the next time settings are written.
 
+## Clouds when zoomed in (`CloudZoomMath`)
+
+**Problem.** The drawn cloud sheets sit above FogOfWar over the whole map. From a distance that reads
+as weather passing over the colony. Zoomed in on a few pawns, one sheet fills the screen as a flat
+translucent wash with no edge in view, and a cloud with no edge reads as ground fog.
+
+**Approach.** A three-way choice, "Clouds when zoomed in", plus a "Clouds clear below zoom" slider:
+
+- *Always drawn* — the look before this existed.
+- *Fade as you zoom in* — opacity eases from full at the slider's zoom (default 40% of the range,
+  about where a whole base fits) to nothing at the closest zoom.
+- *Fly through them* (default) — full opacity down to the slider's zoom (default 24%), then over a
+  window of 0.11 below it the sheets fade while growing to 2.5x about the camera, so the deck
+  rushes outward past the screen edges like descending through a layer.
+
+Zoom is a fraction of `CameraMapConfig.sizeRange`, not a raw root size, because the range starts at
+11 on a PC and 7.2 on a Steam Deck. The fly-through default was play-tested at 15% first, judged to
+cut in one zoom level too late, and moved one zoom-key step out (x1.3 root size) to 24%. Each mode
+keeps its own slider value. The window has width because RimWorld eases its zoom over several
+frames; a hard cut would pop as the eased size crossed it.
+
+The opacity folds into `CloudLayers.SheetAlphaFor`, so the `cloud_sheet_alpha` probe still reports
+what reaches a pixel and a fully cleared deck skips its draw calls. **Cloud shadows and underlight
+are deliberately untouched**: they are light reaching the ground, the camera does not move the cloud
+casting them, and keeping them is what stops a zoomed-in colony reading as if the weather cleared.
+
+**Known limit.** Fly-through grows sheets about the camera, so a sheet sitting just off the map edge
+does not sweep into view as the deck spreads. That only matters inside the short window where the
+sheets are already fading.
+
+**Verification.** `CloudZoomMathTests` (inertness zoomed out, gone at the closest zoom, monotone,
+slider clamping, the one-step default). Live, `cloud_zoom.json` photographs all three modes at root
+sizes 30 / 17 / 12 in one paused boot. At the first-shipped 15% start, median CIELAB ΔE against
+"Always drawn" was 0.00 / 7.18 / 13.71 for Fade and 0.00 / 0.00 / 13.00 for Fly through.
+
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
 **Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`
