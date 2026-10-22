@@ -267,7 +267,8 @@ public static class CloudLayers
         // what reaches a pixel — and it also means a fully faded deck makes the overlay's own
         // `alpha <= 0` early-out skip every draw call. Shadows and underlight never read this
         // function, so they keep drawing at any zoom.
-        float zoomOpacity = CloudZoomMath.OpacityAt(CloudSheetSettings.ZoomMode, CameraZoomFraction());
+        float zoomOpacity = CloudZoomMath.OpacityAt(
+            CloudSheetSettings.ZoomMode, CameraZoomFraction(), CloudSheetSettings.ZoomStart);
 
         return zoomOpacity * CloudSheetMath.SheetAlphaWithAmplitude(
             cover, amplitude, Vacuum.InVacuumForMap(map));

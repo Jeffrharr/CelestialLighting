@@ -21,5 +21,15 @@ public static class CloudSheetSettings
     // What zooming the camera in does to the sheets. See CloudZoomMath for the two behaviours and
     // why both ship. Here rather than in the feature flags because it is a choice between three
     // looks, not a switch.
-    public static CloudZoomMath.Mode ZoomMode = CloudZoomMath.Mode.Off;
+    public static CloudZoomMath.Mode ZoomMode = CloudZoomMath.Mode.FlyThrough;
+
+    // Where each zoom mode starts clearing, as a zoom fraction — the "Clouds clear below" slider.
+    // One per mode, so switching modes gives back each one's own setting.
+    public static float ZoomFadeStart = CloudZoomMath.DefaultFadeStart;
+
+    public static float ZoomFlyThroughStart = CloudZoomMath.DefaultFlyThroughStart;
+
+    // The start for whichever mode is selected, which is the only one the draw path needs.
+    public static float ZoomStart =>
+        ZoomMode == CloudZoomMath.Mode.Fade ? ZoomFadeStart : ZoomFlyThroughStart;
 }

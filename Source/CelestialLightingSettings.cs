@@ -80,9 +80,15 @@ public class CelestialLightingSettings : ModSettings
 
     // What zooming in does to those sheets: nothing, a gradual fade, or a short fly-through. A choice
     // of look rather than a strength, so a radio rather than a slider — see CloudZoomMath for why
-    // both behaviours exist. Off by default, so an existing player's view is unchanged until they
-    // pick one.
-    public CloudZoomMath.Mode cloudZoomMode = CloudZoomMath.Mode.Off;
+    // both behaviours exist. Defaults to the fly-through cutoff: zoomed in close, a cloud with no edge
+    // in view reads as fog, and play-testing picked the cutoff as the better fix.
+    public CloudZoomMath.Mode cloudZoomMode = CloudZoomMath.Mode.FlyThrough;
+
+    // Where each mode starts clearing, as a zoom fraction (0 closest, 1 furthest). One per mode,
+    // because the two want very different framings and switching should not lose either.
+    public float cloudZoomFadeStart = CloudZoomMath.DefaultFadeStart;
+
+    public float cloudZoomFlyThroughStart = CloudZoomMath.DefaultFlyThroughStart;
 
     public bool eaveShadows = true;
 
@@ -375,6 +381,8 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.CloudVolume = cloudVolume;
         CloudSheetSettings.OpacityScale = cloudOpacity;
         CloudSheetSettings.ZoomMode = cloudZoomMode;
+        CloudSheetSettings.ZoomFadeStart = cloudZoomFadeStart;
+        CloudSheetSettings.ZoomFlyThroughStart = cloudZoomFlyThroughStart;
 
         // SyncTo rather than a plain assignment, and the order matters: half of §27 is BAKED into
         // the lighting overlay's vertex colours during a section regenerate, so flipping the switch
@@ -527,7 +535,9 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref cloudOpacity, "cloudOpacity", CloudSheetMath.DefaultOpacityScale);
-        Scribe_Values.Look(ref cloudZoomMode, "cloudZoomMode", CloudZoomMath.Mode.Off);
+        Scribe_Values.Look(ref cloudZoomMode, "cloudZoomMode", CloudZoomMath.Mode.FlyThrough);
+        Scribe_Values.Look(ref cloudZoomFadeStart, "cloudZoomFadeStart", CloudZoomMath.DefaultFadeStart);
+        Scribe_Values.Look(ref cloudZoomFlyThroughStart, "cloudZoomFlyThroughStart", CloudZoomMath.DefaultFlyThroughStart);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
         Scribe_Values.Look(ref vectorLightShadowPlayerPawns, "vectorLightShadowPlayerPawns", true);

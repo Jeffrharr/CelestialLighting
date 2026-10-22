@@ -2772,7 +2772,8 @@ public static class ProbeRegistration
             defaultEnabled: false);
         // The two non-default positions of the "Clouds when zoomed in" radio, for the same reason
         // as the opacity pair above: a choice SetFeature cannot otherwise reach, compared inside one
-        // boot. defaultEnabled FALSE so a ResetAll puts the zoom mode back to Off.
+        // boot, plus "always drawn" since the shipped default is the cutoff. defaultEnabled FALSE so a
+        // ResetAll puts the zoom mode back to the shipped FlyThrough.
         FeatureRegistry.Register(
             CloudZoomModeOverride.FadeFeatureKey,
             enabled => CloudZoomModeOverride.SetFade(enabled),
@@ -2780,6 +2781,10 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CloudZoomModeOverride.FlyThroughFeatureKey,
             enabled => CloudZoomModeOverride.SetFlyThrough(enabled),
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CloudZoomModeOverride.AlwaysFeatureKey,
+            enabled => CloudZoomModeOverride.SetAlways(enabled),
             defaultEnabled: false);
         // Same shape and the same reasoning as the two above — the positions of a FLOAT slider that
         // SetFeature cannot otherwise reach — with one extra obligation that is easy to miss:
