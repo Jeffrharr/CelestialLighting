@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using Waylith.Graphics.Textures;
 using Waylith.Rendering;
 
 namespace CelestialLighting;
